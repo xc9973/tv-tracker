@@ -229,19 +229,21 @@ func (t *TelegramBot) handleAPIKeyInput(c tele.Context) error {
 
 // HandleTasksCallback handles the "今日更新" button
 func (t *TelegramBot) HandleTasksCallback(c tele.Context) error {
-	data, err := t.taskBoard.GetDashboardData()
+	// 获取今天的日期
+	today := time.Now().Format("2006-01-02")
+	
+	// 查询今天播出的剧集
+	episodes, err := t.episodeRepo.GetTodayEpisodesWithShowInfo(today)
 	if err != nil {
-		return c.Respond(&tele.CallbackResponse{Text: "获取任务失败"})
+		return c.Respond(&tele.CallbackResponse{Text: "获取数据失败"})
 	}
 
-	if len(data.UpdateTasks) == 0 {
-		return c.Edit("📺 <b>今日更新</b>\n\n暂无更新任务 🎬", &tele.SendOptions{ParseMode: tele.ModeHTML}, t.BackButtonKeyboard())
+	if len(episodes) == 0 {
+		return c.Edit("📺 <b>今日更新</b>\n\n今日暂无剧集更新 🎬", &tele.SendOptions{ParseMode: tele.ModeHTML}, t.BackButtonKeyboard())
 	}
 
-	msg := t.FormatTaskList(data.UpdateTasks)
-	keyboard := t.TaskListKeyboard(data.UpdateTasks, "complete")
-
-	return c.Edit(msg, &tele.SendOptions{ParseMode: tele.ModeHTML}, keyboard)
+	msg := t.FormatTodayEpisodes(episodes)
+	return c.Edit(msg, &tele.SendOptions{ParseMode: tele.ModeHTML}, t.BackButtonKeyboard())
 }
 
 // HandleSubscribeCallback handles the "订阅剧集" button
@@ -375,6 +377,26 @@ func (t *TelegramBot) HandleArchiveCallback(c tele.Context) error {
 // FormatMainMenu formats the main menu message
 func (t *TelegramBot) FormatMainMenu() string {
 	return "📺 <b>TV Tracker</b>\n\n选择一个功能:"
+}
+
+// FormatTodayEpisodes formats today's episodes list
+func (t *TelegramBot) FormatTodayEpisodes(episodes []repository.TodayEpisodeInfo) string {
+	var sb strings.Builder
+	today := time.Now().Format("2006-01-02")
+	sb.WriteString(fmt.Sprintf("📺 <b>今日更新</b> (%s)\n\n", today))
+
+	for i, info := range episodes {
+		episodeID := fmt.Sprintf("S%02dE%02d", info.Episode.Season, info.Episode.Episode)
+		sb.WriteString(fmt.Sprintf("%d. <b>%s</b>\n", i+1, info.ShowName))
+		sb.WriteString(fmt.Sprintf("   📍 %s", episodeID))
+		if info.Episode.Title != "" {
+			sb.WriteString(fmt.Sprintf(" - %s", info.Episode.Title))
+		}
+		sb.WriteString(fmt.Sprintf("\n   ⏰ %s\n\n", info.ResourceTime))
+	}
+
+	sb.WriteString(fmt.Sprintf("共 %d 集更新", len(episodes)))
+	return sb.String()
 }
 
 // FormatTaskList formats the task list message

@@ -95,6 +95,48 @@ func (r *EpisodeRepository) GetByAirDate(date string) ([]models.Episode, error) 
 	return episodes, rows.Err()
 }
 
+// TodayEpisodeInfo contains episode info with show details for today's updates
+type TodayEpisodeInfo struct {
+	Episode      models.Episode
+	ShowName     string
+	ResourceTime string
+}
+
+// GetTodayEpisodesWithShowInfo retrieves today's episodes with show information
+func (r *EpisodeRepository) GetTodayEpisodesWithShowInfo(date string) ([]TodayEpisodeInfo, error) {
+	rows, err := r.db.Query(`
+		SELECT e.id, e.tmdb_id, e.season, e.episode, e.title, e.overview, e.air_date,
+		       s.name, s.resource_time
+		FROM episodes e
+		JOIN tv_shows s ON e.tmdb_id = s.tmdb_id
+		WHERE e.air_date = ? AND s.is_archived = FALSE
+		ORDER BY s.resource_time, s.name, e.season, e.episode
+	`, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []TodayEpisodeInfo
+	for rows.Next() {
+		var info TodayEpisodeInfo
+		var airDate sql.NullString
+		err := rows.Scan(
+			&info.Episode.ID, &info.Episode.TMDBID, &info.Episode.Season,
+			&info.Episode.Episode, &info.Episode.Title, &info.Episode.Overview, &airDate,
+			&info.ShowName, &info.ResourceTime,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if airDate.Valid {
+			info.Episode.AirDate = airDate.String
+		}
+		results = append(results, info)
+	}
+	return results, rows.Err()
+}
+
 // DeleteByTMDBID deletes all episodes for a show
 func (r *EpisodeRepository) DeleteByTMDBID(tmdbID int) error {
 	_, err := r.db.Exec(`DELETE FROM episodes WHERE tmdb_id = ?`, tmdbID)
