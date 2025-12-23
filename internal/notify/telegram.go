@@ -195,12 +195,18 @@ func (t *TelegramBot) handleTMDBIDInput(c tele.Context) error {
 	}
 
 	// Subscribe to the show
-	show, err := t.subMgr.Subscribe(tmdbID)
+	show, alreadyExists, err := t.subMgr.Subscribe(tmdbID)
 	if err != nil {
-		if strings.Contains(err.Error(), "already subscribed") {
-			return c.Send("⚠️ 该剧集已订阅", t.BackButtonKeyboard())
-		}
 		return c.Send(fmt.Sprintf("❌ 订阅失败: %v", err), t.BackButtonKeyboard())
+	}
+
+	if alreadyExists {
+		msg := fmt.Sprintf(`⚠️ <b>该剧集已订阅</b>
+
+📺 %s
+状态: %s
+资源时间: %s`, show.Name, show.Status, show.ResourceTime)
+		return c.Send(msg, &tele.SendOptions{ParseMode: tele.ModeHTML}, t.BackButtonKeyboard())
 	}
 
 	msg := fmt.Sprintf(`✅ <b>已订阅</b>

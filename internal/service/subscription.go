@@ -31,20 +31,20 @@ func NewSubscriptionManager(
 
 // Subscribe subscribes to a TV show by TMDB ID
 // Fetches show details from TMDB, stores the show, and syncs the latest season episodes
-func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, error) {
+func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, bool, error) {
 	// Check if already subscribed
 	existing, err := s.showRepo.GetByTMDBID(tmdbID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing subscription: %w", err)
+		return nil, false, fmt.Errorf("failed to check existing subscription: %w", err)
 	}
 	if existing != nil {
-		return existing, nil // Already subscribed, return existing
+		return existing, true, nil // Already subscribed, return existing with flag
 	}
 
 	// Fetch details from TMDB
 	details, err := s.tmdbClient.GetTVDetails(tmdbID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch TV details from TMDB: %w", err)
+		return nil, false, fmt.Errorf("failed to fetch TV details from TMDB: %w", err)
 	}
 
 	// Determine origin country
@@ -65,7 +65,7 @@ func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, error) {
 	}
 
 	if err := s.showRepo.Create(show); err != nil {
-		return nil, fmt.Errorf("failed to create subscription: %w", err)
+		return nil, false, fmt.Errorf("failed to create subscription: %w", err)
 	}
 
 	// Sync latest season episodes
@@ -76,7 +76,7 @@ func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, error) {
 		}
 	}
 
-	return show, nil
+	return show, false, nil
 }
 
 // syncSeasonEpisodes syncs episodes for a specific season

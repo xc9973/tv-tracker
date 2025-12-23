@@ -78,7 +78,7 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 			subManager := service.NewSubscriptionManager(tmdbClient, showRepo, episodeRepo)
 
 			// Subscribe to the show
-			show, err := subManager.Subscribe(tmdbID)
+			show, _, err := subManager.Subscribe(tmdbID)
 			if err != nil {
 				t.Logf("Failed to subscribe: %v", err)
 				return false
@@ -175,7 +175,7 @@ func TestSubscriptionIdempotence(t *testing.T) {
 			// Subscribe multiple times
 			var firstShow *models.TVShow
 			for i := 0; i < subscribeCount; i++ {
-				show, err := subManager.Subscribe(tmdbID)
+				show, _, err := subManager.Subscribe(tmdbID)
 				if err != nil {
 					t.Logf("Failed to subscribe (attempt %d): %v", i+1, err)
 					return false
