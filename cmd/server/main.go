@@ -17,12 +17,13 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	TMDBAPIKey       string
-	TelegramBotToken string
-	TelegramChatID   int64
-	DBPath           string
-	BackupDir        string
-	ReportTime       string // Format: "HH:MM"
+	TMDBAPIKey        string
+	TelegramBotToken  string
+	TelegramChatID    int64  // 管理员个人 Chat ID
+	TelegramChannelID int64  // 频道 ID，用于发送日报
+	DBPath            string
+	BackupDir         string
+	ReportTime        string // Format: "HH:MM"
 }
 
 func main() {
@@ -73,7 +74,13 @@ func main() {
 		BackupSvc:   backupSvc,
 	}
 
-	bot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, deps)
+	// 如果没有配置频道 ID，则使用管理员 ID 发送日报
+	channelID := config.TelegramChannelID
+	if channelID == 0 {
+		channelID = config.TelegramChatID
+	}
+
+	bot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, channelID, deps)
 	if err != nil {
 		log.Fatalf("Failed to create Telegram bot: %v", err)
 	}
@@ -113,14 +120,16 @@ func main() {
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	chatID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHAT_ID", "0"), 10, 64)
+	channelID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHANNEL_ID", "0"), 10, 64)
 
 	config := &Config{
-		TMDBAPIKey:       getEnv("TMDB_API_KEY", ""),
-		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		TelegramChatID:   chatID,
-		DBPath:           getEnv("DB_PATH", "tv_tracker.db"),
-		BackupDir:        getEnv("BACKUP_DIR", "backups"),
-		ReportTime:       getEnv("REPORT_TIME", "08:00"),
+		TMDBAPIKey:        getEnv("TMDB_API_KEY", ""),
+		TelegramBotToken:  getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramChatID:    chatID,
+		TelegramChannelID: channelID,
+		DBPath:            getEnv("DB_PATH", "tv_tracker.db"),
+		BackupDir:         getEnv("BACKUP_DIR", "backups"),
+		ReportTime:        getEnv("REPORT_TIME", "08:00"),
 	}
 
 	// Validate required configuration

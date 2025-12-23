@@ -29,7 +29,8 @@ const (
 // TelegramBot handles Telegram bot interactions
 type TelegramBot struct {
 	bot         *tele.Bot
-	chatID      int64
+	chatID      int64  // 管理员 Chat ID
+	channelID   int64  // 频道 ID，用于发送日报
 	state       BotState
 	stateMu     sync.RWMutex
 	tmdb        *tmdb.Client
@@ -51,7 +52,7 @@ type Dependencies struct {
 }
 
 // NewTelegramBot creates a new TelegramBot
-func NewTelegramBot(token string, chatID int64, deps Dependencies) (*TelegramBot, error) {
+func NewTelegramBot(token string, chatID int64, channelID int64, deps Dependencies) (*TelegramBot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -65,6 +66,7 @@ func NewTelegramBot(token string, chatID int64, deps Dependencies) (*TelegramBot
 	tb := &TelegramBot{
 		bot:         bot,
 		chatID:      chatID,
+		channelID:   channelID,
 		state:       StateIdle,
 		tmdb:        deps.TMDB,
 		subMgr:      deps.SubMgr,
@@ -570,7 +572,7 @@ func (t *TelegramBot) TaskListKeyboard(tasks []models.Task, action string) *tele
 	return menu
 }
 
-// SendDailyReport sends the daily report
+// SendDailyReport sends the daily report to the channel
 func (t *TelegramBot) SendDailyReport() error {
 	data, err := t.taskBoard.GetDashboardData()
 	if err != nil {
@@ -578,6 +580,7 @@ func (t *TelegramBot) SendDailyReport() error {
 	}
 
 	msg := t.FormatDailyReport(data.UpdateTasks)
-	_, err = t.bot.Send(&tele.Chat{ID: t.chatID}, msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
+	// 发送到频道
+	_, err = t.bot.Send(&tele.Chat{ID: t.channelID}, msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
 	return err
 }
