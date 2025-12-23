@@ -1,11 +1,3 @@
-# 前端构建阶段
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app/web
-COPY web/package*.json ./
-RUN npm ci
-COPY web/ ./
-RUN npm run build
-
 # 后端构建阶段
 FROM golang:1.23-alpine AS backend-builder
 RUN apk add --no-cache gcc musl-dev sqlite-dev
@@ -21,10 +13,8 @@ RUN apk add --no-cache ca-certificates tzdata sqlite
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY --from=backend-builder /app/tv-tracker .
-COPY --from=frontend-builder /app/web/dist ./web/dist
 
 # 创建数据目录
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data/backups
 
-EXPOSE 8080
 CMD ["./tv-tracker"]

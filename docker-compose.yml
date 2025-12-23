@@ -5,36 +5,12 @@ services:
     build: .
     container_name: tv-tracker
     restart: unless-stopped
-    ports:
-      - "8080:8080"
     environment:
       - TMDB_API_KEY=${TMDB_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - DB_PATH=/app/data/tv_tracker.db
-      - PORT=8080
+      - BACKUP_DIR=/app/data/backups
+      - REPORT_TIME=09:00
     volumes:
-      - ./data:/app/data  # 持久化数据库
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/dashboard"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # 定时发送日报 (每天早上9点)
-  daily-report:
-    build: .
-    container_name: tv-tracker-cron
-    restart: unless-stopped
-    environment:
-      - TMDB_API_KEY=${TMDB_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-      - DB_PATH=/app/data/tv_tracker.db
-    volumes:
-      - ./data:/app/data
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        echo "0 9 * * * /app/tv-tracker --report" > /etc/crontabs/root
-        crond -f -l 2
+      - ./data:/app/data  # 持久化数据库和备份
