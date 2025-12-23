@@ -98,13 +98,13 @@ func (c *Client) SetBaseURL(baseURL string) {
 }
 
 // SearchTV searches for TV shows by query string
-// Calls TMDB /search/tv API
+// Calls TMDB /search/tv API with Chinese language
 func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 	if query == "" {
 		return []SearchResult{}, nil
 	}
 
-	endpoint := fmt.Sprintf("%s/search/tv?api_key=%s&query=%s",
+	endpoint := fmt.Sprintf("%s/search/tv?api_key=%s&query=%s&language=zh-CN",
 		c.baseURL, c.apiKey, url.QueryEscape(query))
 
 	resp, err := c.httpClient.Get(endpoint)
@@ -127,13 +127,13 @@ func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 
 
 // GetTVDetails fetches detailed information for a TV show
-// Calls TMDB /tv/{id} API
+// Calls TMDB /tv/{id} API with Chinese language
 func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
 	if tmdbID <= 0 {
 		return nil, fmt.Errorf("invalid TMDB ID: %d", tmdbID)
 	}
 
-	endpoint := fmt.Sprintf("%s/tv/%d?api_key=%s", c.baseURL, tmdbID, c.apiKey)
+	endpoint := fmt.Sprintf("%s/tv/%d?api_key=%s&language=zh-CN", c.baseURL, tmdbID, c.apiKey)
 
 	resp, err := c.httpClient.Get(endpoint)
 	if err != nil {
@@ -154,7 +154,7 @@ func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
 }
 
 // GetSeasonEpisodes fetches all episodes for a specific season
-// Calls TMDB /tv/{id}/season/{season} API
+// Calls TMDB /tv/{id}/season/{season} API with Chinese language
 func (c *Client) GetSeasonEpisodes(tmdbID, seasonNumber int) ([]EpisodeInfo, error) {
 	if tmdbID <= 0 {
 		return nil, fmt.Errorf("invalid TMDB ID: %d", tmdbID)
@@ -163,7 +163,7 @@ func (c *Client) GetSeasonEpisodes(tmdbID, seasonNumber int) ([]EpisodeInfo, err
 		return nil, fmt.Errorf("invalid season number: %d", seasonNumber)
 	}
 
-	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?api_key=%s",
+	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?api_key=%s&language=zh-CN",
 		c.baseURL, tmdbID, seasonNumber, c.apiKey)
 
 	resp, err := c.httpClient.Get(endpoint)
