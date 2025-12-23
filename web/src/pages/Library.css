@@ -1,0 +1,105 @@
+.library-page {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.library-page h2 {
+  margin-bottom: 1.5rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #a0a0a0;
+}
+
+.error-message {
+  background: #ff4444;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.empty-message {
+  color: #a0a0a0;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+
+.show-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.library-card {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 1rem;
+  border-left: 4px solid #4a4aff;
+}
+
+.library-card.archived {
+  opacity: 0.6;
+  border-left-color: #6a6a8a;
+}
+
+.library-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.library-show-name {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #fff;
+  flex: 1;
+  margin-right: 0.5rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-badge.returning {
+  background: #28a745;
+  color: #fff;
+}
+
+.status-badge.ended {
+  background: #6c757d;
+  color: #fff;
+}
+
+.status-badge.canceled {
+  background: #dc3545;
+  color: #fff;
+}
+
+.status-badge.archived {
+  background: #4a4a6a;
+  color: #a0a0a0;
+}
+
+.status-badge.unknown {
+  background: #4a4a6a;
+  color: #fff;
+}
+
+.library-card-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  color: #a0a0a0;
+}
+
+.library-card-info .label {
+  color: #6a6a8a;
+}
