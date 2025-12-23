@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # 后端构建阶段
-FROM golang:1.21-alpine AS backend-builder
+FROM golang:1.23-alpine AS backend-builder
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 WORKDIR /app
 COPY go.mod go.sum ./
