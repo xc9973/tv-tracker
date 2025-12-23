@@ -2,17 +2,17 @@
 
 ## Overview
 
-TV Tracker 是一个轻量级的 Web 应用，帮助用户追踪订阅剧集的更新状态，为 Emby 媒体库管理提供更新提醒。系统采用 Go 作为后端语言，使用 Gin 框架提供 REST API，SQLite 作为数据存储，前端使用 React + TypeScript。
+TV Tracker 是一个轻量级的 Telegram Bot，部署在服务器上通过 Telegram 消息交互，帮助用户追踪订阅剧集的更新状态，为 Emby 媒体库管理提供更新提醒。系统采用 Go 语言开发，使用 telebot 库实现 Telegram Bot，SQLite 作为数据存储。
 
 ### 核心工作流
 
 ```mermaid
 flowchart TD
-    A[用户搜索剧集] --> B[TMDB API 返回结果]
-    B --> C[用户点击订阅]
+    A[用户发送 /search 命令] --> B[TMDB API 返回结果]
+    B --> C[用户点击订阅按钮]
     C --> D[存储剧集信息到 SQLite]
     
-    E[用户点击同步/访问首页] --> F[遍历未归档订阅]
+    E[用户发送 /sync 命令] --> F[遍历未归档订阅]
     F --> G[调用 TMDB API 获取最新数据]
     G --> H{检查 next_episode_to_air}
     H -->|有新剧集| I[生成 UPDATE_Task]
@@ -20,40 +20,45 @@ flowchart TD
     J -->|Ended/Canceled| K[生成 ORGANIZE_Task]
     J -->|进行中| L[继续下一个]
     
-    M[用户完成任务] --> N{任务类型}
+    M[用户发送 /complete 命令] --> N{任务类型}
     N -->|UPDATE_Task| O[标记完成]
     N -->|ORGANIZE_Task| P[标记完成 + 归档剧集]
 ```
 
 ## Architecture
 
-系统采用经典的三层架构：
+系统采用简洁的 Telegram Bot 架构：
 
 ```mermaid
 graph TB
-    subgraph Presentation["展示层 (Frontend)"]
-        UI[React + TypeScript SPA]
+    subgraph Bot["Telegram Bot"]
+        Handler[Message Handlers]
+        Callback[Callback Query Handlers]
     end
     
-    subgraph Application["应用层 (Flask Backend)"]
-        Routes[Route Handlers]
+    subgraph Application["应用层"]
         TMDB[TMDB Client]
         SubMgr[Subscription Manager]
         TaskGen[Task Generator]
+        TaskBoard[Task Board Service]
     end
     
     subgraph Data["数据层"]
         DB[(SQLite Database)]
         TMDB_API[TMDB API]
+        TG_API[Telegram API]
     end
     
-    UI --> Routes
-    Routes --> TMDB
-    Routes --> SubMgr
-    Routes --> TaskGen
+    Handler --> TMDB
+    Handler --> SubMgr
+    Handler --> TaskGen
+    Handler --> TaskBoard
+    Callback --> SubMgr
     TMDB --> TMDB_API
     SubMgr --> DB
     TaskGen --> DB
+    TaskBoard --> DB
+    Handler --> TG_API
 ```
 
 ## Components and Interfaces
@@ -263,21 +268,116 @@ func (t *TaskBoardService) CompleteTask(taskID int64) error
 
 ### 7. Telegram Notifier (`internal/notify/telegram.go`)
 
-Telegram 通知服务。
+Telegram Bot 服务，处理消息交互和通知。
 
 ```go
 package notify
 
-type TelegramNotifier struct {
-    botToken string
-    chatID   string
-    client   *http.Client
+import (
+    tele "gopkg.in/telebot.v3"
+)
+
+type BotState string
+
+const (
+    StateIdle           BotState = "idle"
+    StateWaitingTMDBID  BotState = "waiting_tmdb_id"
+    StateWaitingAPIKey  BotState = "waiting_api_key"
+)
+
+type TelegramBot struct {
+    bot         *tele.Bot
+    chatID      int64
+    state       BotState  // 用户当前状态（等待输入等）
+    tmdb        *tmdb.Client
+    subMgr      *service.SubscriptionManager
+    taskGen     *service.TaskGenerator
+    taskBoard   *service.TaskBoardService
+    episodeRepo repository.EpisodeRepository
+    backupSvc   *service.BackupService
+    config      *Config
 }
 
-func NewTelegramNotifier(botToken, chatID string) *TelegramNotifier
+func NewTelegramBot(token string, chatID int64, deps Dependencies) (*TelegramBot, error)
 
-func (n *TelegramNotifier) SendMessage(text string) error
-func (n *TelegramNotifier) SendDailyReport(tasks []models.Task) error
+// 命令处理
+func (t *TelegramBot) HandleStart(c tele.Context) error     // /start - 显示主菜单
+func (t *TelegramBot) HandleHelp(c tele.Context) error      // /help - 帮助信息
+func (t *TelegramBot) HandleText(c tele.Context) error      // 处理文本输入（根据 state）
+
+// 按钮回调处理
+func (t *TelegramBot) HandleTasksCallback(c tele.Context) error         // 📺 今日更新
+func (t *TelegramBot) HandleSubscribeCallback(c tele.Context) error     // ➕ 订阅剧集（设置等待状态）
+func (t *TelegramBot) HandleOrganizeCallback(c tele.Context) error      // 📦 待整理
+func (t *TelegramBot) HandleSyncCallback(c tele.Context) error          // 🔄 同步更新
+func (t *TelegramBot) HandleAdminCallback(c tele.Context) error         // ⚙️ 管理
+func (t *TelegramBot) HandleAPIKeyCallback(c tele.Context) error        // 🔑 更换TMDB API
+func (t *TelegramBot) HandleBackupCallback(c tele.Context) error        // 💾 手动备份
+func (t *TelegramBot) HandleBackCallback(c tele.Context) error          // 🔙 返回主菜单
+func (t *TelegramBot) HandleCompleteTaskCallback(c tele.Context) error  // ✅ 已完成（UPDATE_Task）
+func (t *TelegramBot) HandleArchiveCallback(c tele.Context) error       // ✅ 已归档（ORGANIZE_Task）
+
+// 消息格式化
+func (t *TelegramBot) FormatMainMenu() string
+func (t *TelegramBot) FormatTaskList(tasks []models.Task) string
+func (t *TelegramBot) FormatOrganizeList(tasks []models.Task) string
+func (t *TelegramBot) FormatSubscriptionList(shows []models.TVShow) string
+func (t *TelegramBot) FormatAdminMenu() string
+func (t *TelegramBot) FormatDailyReport(episodes []models.Episode) string
+
+// 键盘生成
+func (t *TelegramBot) MainMenuKeyboard() *tele.ReplyMarkup
+func (t *TelegramBot) AdminMenuKeyboard() *tele.ReplyMarkup
+func (t *TelegramBot) BackButtonKeyboard() *tele.ReplyMarkup
+
+// 权限检查
+func (t *TelegramBot) IsOwner(chatID int64) bool
+
+// 启动 Bot
+func (t *TelegramBot) Start()
+```
+
+### 8. Backup Service (`internal/service/backup.go`)
+
+数据库备份服务。
+
+```go
+package service
+
+type BackupService struct {
+    dbPath     string
+    backupDir  string
+    maxBackups int  // 保留的备份数量，默认 4
+}
+
+func NewBackupService(dbPath, backupDir string) *BackupService
+
+func (b *BackupService) Backup() (string, error)           // 执行备份，返回备份文件路径
+func (b *BackupService) GetLastBackupTime() (time.Time, error)  // 获取上次备份时间
+func (b *BackupService) CleanOldBackups() error            // 清理旧备份
+func (b *BackupService) StartWeeklyBackup()                // 启动每周自动备份
+```
+
+### 9. Scheduler (`internal/service/scheduler.go`)
+
+定时任务调度器。
+
+```go
+package service
+
+type Scheduler struct {
+    bot       *notify.TelegramBot
+    backupSvc *BackupService
+    taskGen   *TaskGenerator
+    reportTime string  // 日报发送时间，如 "08:00"
+}
+
+func NewScheduler(bot *notify.TelegramBot, backupSvc *BackupService, taskGen *TaskGenerator, reportTime string) *Scheduler
+
+func (s *Scheduler) Start()                    // 启动所有定时任务
+func (s *Scheduler) ScheduleDailyReport()      // 每天早上发送日报
+func (s *Scheduler) ScheduleWeeklyBackup()     // 每周备份数据库
+func (s *Scheduler) ScheduleDailySync()        // 每天同步数据（可选）
 ```
 
 ### 8. Resource Time Calculator (`internal/service/resource_time.go`)
@@ -375,18 +475,82 @@ CREATE INDEX idx_shows_archived ON tv_shows(is_archived);
 }
 ```
 
-## API Routes
+## Bot Commands
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/` | GET | 任务看板首页 |
-| `/search` | GET | 搜索页面 |
-| `/api/search` | GET | 搜索 TMDB API |
-| `/api/subscribe` | POST | 订阅剧集 |
-| `/api/sync` | POST | 手动同步数据 |
-| `/api/tasks/<id>/complete` | POST | 完成任务 |
-| `/api/report` | POST | 发送 Telegram 日报 |
-| `/library` | GET | 我的片库页面 |
+| Command | Description |
+|---------|-------------|
+| `/start` | 显示主菜单（按钮界面） |
+| `/help` | 显示帮助信息 |
+
+### 主菜单按钮
+
+```
+📺 TV Tracker
+
+[📺 今日更新]  [➕ 订阅剧集]
+[📦 待整理]    [🔄 同步更新]
+[⚙️ 管理]
+```
+
+### 交互流程示例
+
+```
+用户: /start
+Bot: 📺 TV Tracker
+     [📺 今日更新]  [➕ 订阅剧集]
+     [📦 待整理]    [🔄 同步更新]
+     [⚙️ 管理]
+
+用户: 点击 [➕ 订阅剧集]
+Bot: 请输入 TMDB ID（可在 themoviedb.org 查询）:
+
+用户: 1399
+Bot: ✅ 已订阅: Game of Thrones (2011)
+     状态: Ended
+     资源时间: 18:00
+     [🔙 返回主菜单]
+
+用户: 点击 [📺 今日更新]
+Bot: 📺 今日更新:
+
+     1. Severance S02E03 - 18:00
+     [✅ 已完成]
+     
+     2. 繁花 S01E15 - 20:00
+     [✅ 已完成]
+     
+     [🔙 返回主菜单]
+
+用户: 点击第一个 [✅ 已完成]
+Bot: ✅ 已标记完成: Severance S02E03
+     
+     📺 今日更新:
+     
+     1. 繁花 S01E15 - 20:00
+     [✅ 已完成]
+     
+     [🔙 返回主菜单]
+
+用户: 点击 [📦 待整理]
+Bot: 📦 待整理归档:
+
+     1. Game of Thrones - 已完结
+     [✅ 已归档]
+     
+     2. Breaking Bad - 已完结
+     [✅ 已归档]
+     
+     [🔙 返回主菜单]
+
+用户: 点击 [⚙️ 管理]
+Bot: ⚙️ 系统管理
+     - 订阅数: 15
+     - 待处理任务: 3
+     - 上次备份: 2024-01-15 03:00
+     
+     [🔑 更换TMDB API]  [💾 手动备份]
+     [🔙 返回主菜单]
+```
 
 
 
@@ -480,9 +644,9 @@ CREATE INDEX idx_shows_archived ON tv_shows(is_archived);
 
 ### Property 15: Task Rendering Completeness
 
-*For any* Task with an associated TVShow, the rendered task view SHALL include the show name and task description.
+*For any* Task with an associated TVShow, the formatted task message SHALL include the show name, task description, and resource time.
 
-**Validates: Requirements 7.3**
+**Validates: Requirements 7.8**
 
 ### Property 16: TVShow Persistence Round-Trip
 
@@ -601,16 +765,16 @@ tv-tracker/
 │   │   ├── repository.go
 │   │   ├── sqlite.go
 │   │   └── sqlite_test.go
-│   └── service/
-│       ├── subscription.go
-│       ├── subscription_test.go
-│       ├── task_generator.go
-│       ├── task_generator_test.go
-│       ├── task_board.go
-│       └── task_board_test.go
-├── internal/handler/
-│   ├── handler.go
-│   └── handler_test.go
+│   ├── service/
+│   │   ├── subscription.go
+│   │   ├── subscription_test.go
+│   │   ├── task_generator.go
+│   │   ├── task_generator_test.go
+│   │   ├── task_board.go
+│   │   └── task_board_test.go
+│   └── notify/
+│       ├── telegram.go
+│       └── telegram_test.go
 ├── tests/
 │   └── property/
 │       ├── search_test.go
@@ -618,15 +782,6 @@ tv-tracker/
 │       ├── sync_test.go
 │       ├── task_test.go
 │       └── persistence_test.go
-├── web/                    # React 前端
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── package.json
-│   └── vite.config.ts
 ├── cmd/
 │   └── server/
 │       └── main.go
@@ -642,7 +797,7 @@ module tv-tracker
 go 1.21
 
 require (
-    github.com/gin-gonic/gin v1.9.1
+    gopkg.in/telebot.v3 v3.2.1
     github.com/mattn/go-sqlite3 v1.14.19
     github.com/leanovate/gopter v0.2.9
     github.com/stretchr/testify v1.8.4

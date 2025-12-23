@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"strconv"
+	"syscall"
 
-	"github.com/gin-gonic/gin"
-
-	"tv-tracker/internal/handler"
 	"tv-tracker/internal/notify"
 	"tv-tracker/internal/repository"
 	"tv-tracker/internal/service"
@@ -20,14 +19,15 @@ import (
 type Config struct {
 	TMDBAPIKey       string
 	TelegramBotToken string
-	TelegramChatID   string
+	TelegramChatID   int64
 	DBPath           string
-	Port             string
+	BackupDir        string
+	ReportTime       string // Format: "HH:MM"
 }
 
 func main() {
 	// Parse CLI flags
-	reportMode := flag.Bool("report", false, "Send daily report and exit (for cron jobs)")
+	reportMode := flag.Bool("report", false, "Send daily report and exit")
 	flag.Parse()
 
 	// Load configuration
@@ -57,75 +57,70 @@ func main() {
 	subManager := service.NewSubscriptionManager(tmdbClient, showRepo, episodeRepo)
 	taskGenerator := service.NewTaskGenerator(tmdbClient, showRepo, episodeRepo, taskRepo)
 	taskBoard := service.NewTaskBoardService(taskRepo, showRepo)
+	backupSvc := service.NewBackupService(config.DBPath, config.BackupDir)
 
-	// Initialize Telegram notifier (optional - may not be configured)
-	var notifier *notify.TelegramNotifier
-	if config.TelegramBotToken != "" && config.TelegramChatID != "" {
-		notifier = notify.NewTelegramNotifier(config.TelegramBotToken, config.TelegramChatID)
+	// Initialize Telegram Bot
+	if config.TelegramBotToken == "" || config.TelegramChatID == 0 {
+		log.Fatal("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
+	}
+
+	deps := notify.Dependencies{
+		TMDB:        tmdbClient,
+		SubMgr:      subManager,
+		TaskGen:     taskGenerator,
+		TaskBoard:   taskBoard,
+		EpisodeRepo: episodeRepo,
+		BackupSvc:   backupSvc,
+	}
+
+	bot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, deps)
+	if err != nil {
+		log.Fatalf("Failed to create Telegram bot: %v", err)
 	}
 
 	// CLI mode: send daily report and exit
-	// Requirements: 9.4 - Support CLI mode for cron jobs
 	if *reportMode {
-		if notifier == nil {
-			log.Fatal("Telegram notifier not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
-		}
-
-		// Get dashboard data for the report
-		data, err := taskBoard.GetDashboardData()
-		if err != nil {
-			log.Fatalf("Failed to get dashboard data: %v", err)
-		}
-
-		// Send daily report
-		if err := notifier.SendDailyReport(data.UpdateTasks); err != nil {
+		log.Println("Sending daily report...")
+		if err := bot.SendDailyReport(); err != nil {
 			log.Fatalf("Failed to send daily report: %v", err)
 		}
-
 		fmt.Println("Daily report sent successfully!")
 		return
 	}
 
-	// Web server mode
-	// Initialize handler
-	h := handler.NewHandler(tmdbClient, subManager, taskGenerator, taskBoard, notifier)
+	// Initialize scheduler
+	scheduler := service.NewScheduler(bot, backupSvc, config.ReportTime)
+	scheduler.Start()
 
-	// Setup Gin router
-	router := gin.Default()
+	// Handle graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Serve static files from web/dist
-	webDistPath := filepath.Join("web", "dist")
-	if _, err := os.Stat(webDistPath); err == nil {
-		router.Static("/assets", filepath.Join(webDistPath, "assets"))
-		router.StaticFile("/", filepath.Join(webDistPath, "index.html"))
-		router.StaticFile("/vite.svg", filepath.Join(webDistPath, "vite.svg"))
-		
-		// Handle SPA routing - serve index.html for non-API routes
-		router.NoRoute(func(c *gin.Context) {
-			c.File(filepath.Join(webDistPath, "index.html"))
-		})
-	}
+	go func() {
+		<-sigChan
+		log.Println("Shutting down...")
+		scheduler.Stop()
+		bot.Stop()
+		os.Exit(0)
+	}()
 
-	// Register API routes
-	h.RegisterRoutes(router)
-
-	// Start server
-	addr := ":" + config.Port
-	log.Printf("Starting TV Tracker server on %s", addr)
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	// Start bot (blocking)
+	log.Printf("TV Tracker bot started. Chat ID: %d", config.TelegramChatID)
+	bot.Start()
 }
 
+
 // loadConfig loads configuration from environment variables
-// Requirements: 8.3 - Load configuration on application start
 func loadConfig() *Config {
+	chatID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHAT_ID", "0"), 10, 64)
+
 	config := &Config{
 		TMDBAPIKey:       getEnv("TMDB_API_KEY", ""),
 		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		TelegramChatID:   getEnv("TELEGRAM_CHAT_ID", ""),
+		TelegramChatID:   chatID,
 		DBPath:           getEnv("DB_PATH", "tv_tracker.db"),
-		Port:             getEnv("PORT", "8080"),
+		BackupDir:        getEnv("BACKUP_DIR", "backups"),
+		ReportTime:       getEnv("REPORT_TIME", "08:00"),
 	}
 
 	// Validate required configuration

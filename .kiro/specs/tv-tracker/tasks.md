@@ -2,14 +2,14 @@
 
 ## Overview
 
-基于 Go + Gin + SQLite 实现影视剧订阅追踪系统，前端使用 React + TypeScript。采用增量开发方式，每个任务构建在前一个任务之上。
+基于 Go + telebot + SQLite 实现影视剧订阅追踪系统，通过 Telegram Bot 交互。采用增量开发方式，每个任务构建在前一个任务之上。
 
 ## Tasks
 
 - [x] 1. 项目初始化和数据模型
   - [x] 1.1 创建 Go 项目结构和依赖配置
-    - 创建 go.mod，添加 gin、go-sqlite3、gopter、testify 依赖
-    - 创建目录结构：cmd/server、internal/models、internal/repository、internal/service、internal/handler、internal/tmdb
+    - 创建 go.mod，添加 telebot、go-sqlite3、gopter、testify 依赖
+    - 创建目录结构：cmd/server、internal/models、internal/repository、internal/service、internal/notify、internal/tmdb
     - _Requirements: 8.1_
 
   - [x] 1.2 实现数据模型 (`internal/models/models.go`)
@@ -128,76 +128,65 @@
     - **Property 14: ORGANIZE_Task Completion Cascades to Archive**
     - **Validates: Requirements 6.2**
 
-- [x] 9. HTTP Handler 实现
-  - [x] 9.1 实现 Handler (`internal/handler/handler.go`)
-    - GET /api/dashboard - 获取看板数据
-    - GET /api/search - 搜索 TMDB API
-    - POST /api/subscribe - 订阅剧集
-    - POST /api/sync - 手动同步
-    - POST /api/tasks/:id/complete - 完成任务
-    - GET /api/library - 获取片库数据
-    - POST /api/report - 发送 Telegram 日报
-    - _Requirements: 1.1, 1.4, 2.3, 7.1, 7.2, 7.3_
+- [x] 9. Telegram Bot 实现
+  - [x] 9.1 实现 TelegramBot (`internal/notify/telegram.go`)
+    - NewTelegramBot 构造函数
+    - HandleStart: /start 命令 - 显示主菜单按钮
+    - HandleHelp: /help 命令 - 帮助信息
+    - HandleText: 处理文本输入（根据当前状态）
+    - 按钮回调：HandleTasksCallback, HandleSubscribeCallback, HandleOrganizeCallback, HandleSyncCallback, HandleAdminCallback, HandleAPIKeyCallback, HandleBackupCallback, HandleBackCallback
+    - 任务完成回调：HandleCompleteTaskCallback (✅ 已完成), HandleArchiveCallback (✅ 已归档)
+    - 状态管理：StateIdle, StateWaitingTMDBID, StateWaitingAPIKey
+    - 键盘生成：MainMenuKeyboard, AdminMenuKeyboard, BackButtonKeyboard, TaskListKeyboard
+    - IsOwner: 权限检查（只响应配置的 Chat ID）
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10_
 
   - [x] 9.2 编写属性测试：任务渲染完整性
     - **Property 15: Task Rendering Completeness**
-    - **Validates: Requirements 7.3**
+    - **Validates: Requirements 7.9**
 
-- [x] 10. Telegram 通知服务实现
-  - [x] 10.1 实现 TelegramNotifier (`internal/notify/telegram.go`)
-    - NewTelegramNotifier 构造函数
-    - SendMessage 方法：发送消息到 Telegram
-    - SendDailyReport 方法：生成并发送每日更新日报
-    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
+- [x] 10. 日报功能实现
+  - [x] 10.1 实现日报格式化
+    - FormatDailyReport 方法：生成每日更新日报消息
+    - 包含剧名、集数信息 (SxxExx)、资源时间
+    - _Requirements: 9.1, 9.2, 9.3_
 
   - [x] 10.2 编写属性测试：日报包含所有今日剧集
     - **Property 19: Daily Report Contains All Today's Episodes**
     - **Validates: Requirements 9.1, 9.2**
 
-- [x] 11. 前端 React 应用实现
-  - [x] 11.1 初始化 React 项目
-    - 使用 Vite 创建 React + TypeScript 项目
-    - 配置代理到 Go 后端
-    - 安装依赖：axios、react-router-dom
-    - _Requirements: 7.1, 7.2_
+- [x] 11. 数据库备份服务实现
+  - [x] 11.1 实现 BackupService (`internal/service/backup.go`)
+    - Backup 方法：执行数据库备份
+    - GetLastBackupTime 方法：获取上次备份时间
+    - CleanOldBackups 方法：清理旧备份（保留最近 4 个）
+    - _Requirements: 11.1, 11.2, 11.3_
 
-  - [x] 11.2 创建基础组件和布局
-    - App.tsx - 路由配置
-    - Layout.tsx - 基础布局组件
-    - 全局样式
-    - _Requirements: 7.1, 7.4_
+  - [x] 11.2 实现 Scheduler (`internal/service/scheduler.go`)
+    - ScheduleDailyReport 方法：每天早上定时发送日报
+    - ScheduleWeeklyBackup 方法：每周自动备份
+    - Start 方法：启动所有定时任务
+    - _Requirements: 9.1, 11.1_
 
-  - [x] 11.3 实现任务看板页面 (Dashboard.tsx)
-    - 展示今日更新任务列表（按资源时间排序）
-    - 展示待整理任务列表
-    - 同步按钮
-    - 发送日报按钮
-    - 任务完成按钮
-    - _Requirements: 7.1, 7.2, 7.3, 7.4, 10.5_
-
-  - [x] 11.4 实现搜索页面 (Search.tsx)
-    - 搜索输入框
-    - 搜索结果展示（剧名、海报、首播日期）
-    - 订阅按钮
-    - _Requirements: 1.2, 1.4_
-
-  - [x] 11.5 实现片库页面 (Library.tsx)
-    - 展示所有订阅剧集
-    - 显示剧集状态
-    - _Requirements: 2.4_
+  - [x] 11.3 集成备份到 Admin 命令
+    - 在 /admin 中显示上次备份时间
+    - 添加手动备份按钮回调
+    - _Requirements: 11.4_
 
 - [x] 12. 应用入口和配置
   - [x] 12.1 实现主程序入口 (`cmd/server/main.go`)
-    - 加载配置 (TMDB API Key, Telegram Bot Token, Chat ID)
+    - 加载配置 (TMDB API Key, Telegram Bot Token, Chat ID, Report Time)
     - 初始化数据库
     - 初始化服务
-    - 启动 Gin 服务器
-    - 支持 CLI 模式：`--report` 参数直接发送日报（用于 cron 定时任务）
-    - _Requirements: 8.3, 9.4_
+    - 启动 Telegram Bot (长轮询模式)
+    - 启动 Scheduler（日报定时任务 + 每周备份）
+    - 支持 CLI 模式：`--report` 参数直接发送日报（用于手动触发）
+    - _Requirements: 8.3, 9.1, 11.1_
 
 - [x] 13. Final Checkpoint - 完整功能验证
   - 确保所有测试通过
-  - 验证完整工作流：搜索 → 订阅 → 同步 → 任务完成 → 发送日报
+  - 验证完整工作流：/dy → /gx → /tasks → /wj → /admin
+  - 验证每周备份功能
   - 如有问题请询问用户
 
 ## Notes

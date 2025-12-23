@@ -2,15 +2,15 @@
 
 ## Introduction
 
-TV Tracker 是一个个人使用的 Web 应用程序，用于管理 Emby 媒体库的影视剧订阅和更新追踪。系统集成 TMDB API 获取元数据，自动在剧集更新日生成"更新提醒"任务，并通过 Telegram Bot 发送每日更新日报。当剧集完结时提醒用户进行本地文件整理归档。
+TV Tracker 是一个个人使用的 Telegram Bot 应用，部署在服务器上通过 Telegram 消息交互，用于管理 Emby 媒体库的影视剧订阅和更新追踪。系统集成 TMDB API 获取元数据，自动在剧集更新日生成"更新提醒"任务，并通过 Telegram Bot 发送每日更新日报。当剧集完结时提醒用户进行本地文件整理归档。
 
 ## Glossary
 
-- **TV_Tracker**: 影视剧订阅追踪系统的主应用
+- **TV_Tracker**: 影视剧订阅追踪系统的主应用（Telegram Bot）
 - **TMDB_Client**: 与 TMDB API 交互的客户端模块
 - **Subscription_Manager**: 管理用户剧集订阅的模块
 - **Task_Generator**: 根据剧集状态生成任务的模块
-- **Task_Board**: 展示和管理任务的可视化界面
+- **Bot**: Telegram Bot，用户通过发送消息/命令与系统交互
 - **Notifier**: Telegram 通知模块
 - **TVShow**: 订阅的剧集数据模型
 - **Task**: 待办任务数据模型
@@ -86,16 +86,33 @@ TV Tracker 是一个个人使用的 Web 应用程序，用于管理 Emby 媒体�
 3. WHEN a show is archived, THE TV_Tracker SHALL exclude it from future sync operations
 4. WHEN viewing the task board, THE TV_Tracker SHALL display completed and pending tasks separately
 
-### Requirement 7: 任务看板展示
+### Requirement 7: Telegram Bot 交互
 
-**User Story:** As a user, I want a visual dashboard to see all my tasks, so that I can manage my Emby library updates.
+**User Story:** As a user, I want to interact with the system via Telegram Bot with button-based menu, so that I can manage my Emby library updates easily from my phone.
 
 #### Acceptance Criteria
 
-1. WHEN visiting the home page, THE Task_Board SHALL display today's UPDATE_Tasks prominently
-2. WHEN there are pending ORGANIZE_Tasks, THE Task_Board SHALL display them in a separate section
-3. WHEN displaying tasks, THE Task_Board SHALL show the associated show name and task description
-4. WHEN a task is completed, THE Task_Board SHALL provide visual distinction from pending tasks
+1. WHEN sending `/start` command, THE Bot SHALL display a main menu with inline buttons for all functions
+2. WHEN clicking "📺 今日更新" button, THE Bot SHALL reply with all pending UPDATE_Tasks, each with a "✅ 已完成" button
+3. WHEN clicking "✅ 已完成" button on an UPDATE_Task, THE Bot SHALL mark the task as completed and update the display
+4. WHEN clicking "➕ 订阅剧集" button, THE Bot SHALL prompt user to input TMDB ID, then subscribe to the show
+5. WHEN clicking "📦 待整理" button, THE Bot SHALL reply with all ended/canceled shows, each with a "✅ 已归档" button
+6. WHEN clicking "✅ 已归档" button on an ORGANIZE_Task, THE Bot SHALL mark the task as completed, archive the show, and update the display
+7. WHEN clicking "🔄 同步更新" button, THE Bot SHALL sync all active subscriptions and reply with the subscription list
+8. WHEN clicking "⚙️ 管理" button, THE Bot SHALL display admin menu with system status, TMDB API config, and backup options
+9. WHEN displaying tasks, THE Bot SHALL show the associated show name, task description, and resource time
+10. WHEN the Bot starts, THE Bot SHALL only respond to messages from the configured Chat ID (owner only)
+
+### Requirement 11: 数据库备份
+
+**User Story:** As a user, I want the database to be backed up automatically, so that I don't lose my data.
+
+#### Acceptance Criteria
+
+1. THE TV_Tracker SHALL automatically backup the SQLite database once per week
+2. WHEN creating a backup, THE TV_Tracker SHALL save the backup file with a timestamp in the filename
+3. THE TV_Tracker SHALL retain the last 4 weekly backups and delete older ones
+4. WHEN sending `/admin` command, THE Bot SHALL show the last backup time and allow manual backup trigger
 
 ### Requirement 8: 数据持久化
 
@@ -110,15 +127,16 @@ TV Tracker 是一个个人使用的 Web 应用程序，用于管理 Emby 媒体�
 
 ### Requirement 9: Telegram 日报通知
 
-**User Story:** As a user, I want to receive daily update reports via Telegram, so that I know what shows are airing today without opening the app.
+**User Story:** As a user, I want to receive daily update reports via Telegram automatically every morning, so that I know what shows are airing today without manually checking.
 
 #### Acceptance Criteria
 
-1. WHEN generating a daily report, THE Notifier SHALL query all episodes with air_date equal to today
-2. WHEN there are updates today, THE Notifier SHALL format a message containing show name, episode info (SxxExx), and resource time
-3. WHEN there are no updates today, THE Notifier SHALL send a message indicating no updates
-4. WHEN sending a Telegram message, THE Notifier SHALL use the configured Bot Token and Chat ID
-5. IF the Telegram API fails, THEN THE Notifier SHALL log the error and continue operation
+1. THE TV_Tracker SHALL automatically send a daily report to the configured Telegram channel every morning at a configured time
+2. WHEN generating a daily report, THE Notifier SHALL query all episodes with air_date equal to today
+3. WHEN there are updates today, THE Notifier SHALL format a message containing show name, episode info (SxxExx), and resource time
+4. WHEN there are no updates today, THE Notifier SHALL send a message indicating no updates
+5. WHEN sending a Telegram message, THE Notifier SHALL use the configured Bot Token and Chat ID
+6. IF the Telegram API fails, THEN THE Notifier SHALL log the error and continue operation
 
 ### Requirement 10: 资源时间自动推断
 
