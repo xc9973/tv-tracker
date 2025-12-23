@@ -10,15 +10,17 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://api.themoviedb.org/3"
-	defaultTimeout = 10 * time.Second
+	defaultBaseURL    = "https://api.themoviedb.org/3"
+	defaultTimeout    = 10 * time.Second
+	requestInterval   = 100 * time.Millisecond // 请求间隔，避免触发限流
 )
 
 // Client handles all interactions with the TMDB API
 type Client struct {
-	apiKey     string
-	baseURL    string
-	httpClient *http.Client
+	apiKey      string
+	baseURL     string
+	httpClient  *http.Client
+	lastRequest time.Time
 }
 
 // SearchResult represents a single TV show from search results
@@ -104,6 +106,8 @@ func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 		return []SearchResult{}, nil
 	}
 
+	c.rateLimit() // 限流
+
 	endpoint := fmt.Sprintf("%s/search/tv?api_key=%s&query=%s&language=zh-CN",
 		c.baseURL, c.apiKey, url.QueryEscape(query))
 
@@ -132,6 +136,8 @@ func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
 	if tmdbID <= 0 {
 		return nil, fmt.Errorf("invalid TMDB ID: %d", tmdbID)
 	}
+
+	c.rateLimit() // 限流
 
 	endpoint := fmt.Sprintf("%s/tv/%d?api_key=%s&language=zh-CN", c.baseURL, tmdbID, c.apiKey)
 
@@ -162,6 +168,8 @@ func (c *Client) GetSeasonEpisodes(tmdbID, seasonNumber int) ([]EpisodeInfo, err
 	if seasonNumber < 0 {
 		return nil, fmt.Errorf("invalid season number: %d", seasonNumber)
 	}
+
+	c.rateLimit() // 限流
 
 	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?api_key=%s&language=zh-CN",
 		c.baseURL, tmdbID, seasonNumber, c.apiKey)
@@ -214,4 +222,13 @@ func (c *Client) checkResponse(resp *http.Response) error {
 	}
 
 	return &apiErr
+}
+
+// rateLimit ensures requests are spaced out to avoid hitting API limits
+func (c *Client) rateLimit() {
+	elapsed := time.Since(c.lastRequest)
+	if elapsed < requestInterval {
+		time.Sleep(requestInterval - elapsed)
+	}
+	c.lastRequest = time.Now()
 }
