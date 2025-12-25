@@ -602,13 +602,47 @@ func (t *TelegramBot) TaskListKeyboard(tasks []models.Task, action string) *tele
 
 // SendDailyReport sends the daily report to the channel
 func (t *TelegramBot) SendDailyReport() error {
-	data, err := t.taskBoard.GetDashboardData()
+	// 获取今天的日期
+	today := time.Now().Format("2006-01-02")
+	
+	// 查询今天播出的剧集
+	episodes, err := t.episodeRepo.GetTodayEpisodesWithShowInfo(today)
 	if err != nil {
-		return fmt.Errorf("failed to get dashboard data: %w", err)
+		return fmt.Errorf("failed to get today's episodes: %w", err)
 	}
 
-	msg := t.FormatDailyReport(data.UpdateTasks)
+	msg := t.FormatDailyReportFromEpisodes(episodes)
 	// 发送到频道
 	_, err = t.bot.Send(&tele.Chat{ID: t.channelID}, msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
 	return err
+}
+
+// FormatDailyReportFromEpisodes formats today's episodes into a daily report
+func (t *TelegramBot) FormatDailyReportFromEpisodes(episodes []repository.TodayEpisodeInfo) string {
+	today := time.Now().Format("2006-01-02")
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("📺 <b>今日更新日报</b> (%s)\n\n", today))
+
+	if len(episodes) == 0 {
+		sb.WriteString("今日暂无剧集更新 🎬")
+		return sb.String()
+	}
+
+	for i, info := range episodes {
+		episodeID := fmt.Sprintf("S%02dE%02d", info.Episode.Season, info.Episode.Episode)
+		sb.WriteString(fmt.Sprintf("%d. <b>%s</b>\n", i+1, info.ShowName))
+		sb.WriteString(fmt.Sprintf("   📍 %s", episodeID))
+		if info.Episode.Title != "" {
+			sb.WriteString(fmt.Sprintf(" - %s", info.Episode.Title))
+		}
+		sb.WriteString(fmt.Sprintf("\n   ⏰ %s\n", info.ResourceTime))
+		if i < len(episodes)-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("\n\n共 %d 集更新", len(episodes)))
+
+	return sb.String()
 }
