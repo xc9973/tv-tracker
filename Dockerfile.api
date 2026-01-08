@@ -16,6 +16,7 @@ ENV TZ=Asia/Shanghai
 
 WORKDIR /app
 COPY --from=builder /app/tv-tracker ./
+COPY web/simple /app/web/simple
 RUN mkdir -p /app/data/backups
 
 EXPOSE 18080

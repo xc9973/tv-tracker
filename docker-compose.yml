@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
-  tv-tracker-api:
+  tv-tracker:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: tv-tracker-api
+    container_name: tv-tracker
     restart: unless-stopped
+    ports:
+      - "8318:18080"
     environment:
       - TMDB_API_KEY=${TMDB_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -21,22 +21,3 @@ services:
       - WEB_API_TOKEN=${WEB_API_TOKEN}
     volumes:
       - ./data:/app/data
-    networks:
-      - tv-tracker-net
-
-  tv-tracker-web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    container_name: tv-tracker-web
-    restart: unless-stopped
-    ports:
-      - "8318:80"
-    volumes:
-      - ./nginx/tv-tracker-docker.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - tv-tracker-net
-
-networks:
-  tv-tracker-net:
-    driver: bridge

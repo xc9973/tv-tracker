@@ -49,6 +49,11 @@ func NewHTTPHandler(
 
 // RegisterRoutes registers all HTTP routes
 func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
+	// Serve simple web UI
+	r.GET("/", func(c *gin.Context) {
+		c.File("./web/simple/index.html")
+	})
+
 	api := r.Group("/api")
 	api.Use(h.authMiddleware)
 
