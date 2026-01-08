@@ -171,6 +171,39 @@
             border-radius: 4px;
             margin: 10px 0;
         }
+        
+        .show-details {
+            margin-top: 8px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .show-details div {
+            margin: 4px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        .badge.status { background: #28a745; color: white; }
+        .badge.ended { background: #6c757d; color: white; }
+        .edit-time {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .edit-time input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -360,22 +393,84 @@
                 const data = await response.json();
                 
                 if (data.shows && data.shows.length > 0) {
-                    list.innerHTML = data.shows.map(show => `
-                        <div class="list-item">
-                            <div class="list-item-info">
-                                <h3>${show.name}</h3>
-                                <p>已订阅 · ${show.episode_count || 0} 集</p>
+                    list.innerHTML = data.shows.map(show => {
+                        const statusBadge = show.status === 'Returning Series' ? 
+                            '<span class="badge status">连载中</span>' : 
+                            '<span class="badge ended">已完结</span>';
+                        
+                        return `
+                        <div class="list-item" style="flex-direction: column; align-items: stretch;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div class="list-item-info">
+                                    <h3>${show.name}</h3>
+                                    <div style="margin-top: 8px;">
+                                        ${statusBadge}
+                                        <span class="badge" style="background: #17a2b8; color: white;">
+                                            ${show.total_seasons} 季
+                                        </span>
+                                        ${show.origin_country ? `<span class="badge" style="background: #ffc107; color: #333;">${show.origin_country}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="list-item-actions">
+                                    <button class="btn-small danger" onclick="unsubscribe(${show.id}, '${show.name.replace(/'/g, "\\'")}')">取消订阅</button>
+                                </div>
                             </div>
-                            <div class="list-item-actions">
-                                <button class="btn-small danger" onclick="unsubscribe(${show.id}, '${show.name.replace(/'/g, "\\'")}')">取消订阅</button>
+                            <div class="show-details">
+                                <div><strong>TMDB ID:</strong> ${show.tmdb_id}</div>
+                                <div><strong>资源时间:</strong> ${show.resource_time || '未设置'}</div>
+                                <div class="edit-time">
+                                    <input type="text" 
+                                           id="time-${show.id}" 
+                                           placeholder="格式: 08:00 或 周五08:00" 
+                                           value="${show.resource_time || ''}">
+                                    <button class="btn-small" onclick="updateResourceTime(${show.id}, '${show.name.replace(/'/g, "\\'")}')">
+                                        更新时间
+                                    </button>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                                    订阅于: ${new Date(show.created_at).toLocaleDateString('zh-CN')}
+                                </div>
                             </div>
                         </div>
-                    `).join('');
+                    `;
+                    }).join('');
                 } else {
                     list.innerHTML = '<div class="empty-state">暂无订阅</div>';
                 }
             } catch (error) {
                 list.innerHTML = '<div class="error">加载失败: ' + error.message + '</div>';
+            }
+        }
+        
+        // 更新资源时间
+        async function updateResourceTime(id, name) {
+            const timeInput = document.getElementById(`time-${id}`);
+            const resourceTime = timeInput.value.trim();
+            
+            if (!resourceTime) {
+                alert('请输入资源时间');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/subscribe/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${API_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ resource_time: resourceTime })
+                });
+                
+                if (response.ok) {
+                    alert(`已更新 ${name} 的资源时间为: ${resourceTime}`);
+                    loadLibrary();
+                } else {
+                    const text = await response.text();
+                    alert('更新失败: ' + text);
+                }
+            } catch (error) {
+                alert('更新失败: ' + error.message);
             }
         }
         
