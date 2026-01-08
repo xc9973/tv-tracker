@@ -152,6 +152,25 @@
             border-radius: 8px;
             margin-bottom: 20px;
         }
+        
+        .token-setup {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .token-setup h3 {
+            margin-bottom: 10px;
+            color: #856404;
+        }
+        .token-setup input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -168,6 +187,14 @@
         </div>
         
         <div class="content">
+            <!-- Token设置提示 -->
+            <div id="tokenSetup" class="token-setup" style="display:none;">
+                <h3>⚠️ 需要配置API Token</h3>
+                <p>请输入您的 WEB_API_TOKEN (在 .env 文件中配置):</p>
+                <input type="password" id="tokenInput" placeholder="输入您的API Token">
+                <button class="btn" onclick="saveToken()">保存Token</button>
+            </div>
+            
             <!-- 搜索订阅 -->
             <div id="search" class="section active">
                 <div class="search-box">
@@ -193,7 +220,27 @@
 
     <script>
         const API_BASE = '/api';
-        const API_TOKEN = localStorage.getItem('api_token') || 'your-api-token';
+        let API_TOKEN = localStorage.getItem('api_token') || '';
+        
+        // 检查Token
+        window.addEventListener('DOMContentLoaded', function() {
+            if (!API_TOKEN || API_TOKEN === 'your-api-token') {
+                document.getElementById('tokenSetup').style.display = 'block';
+            }
+        });
+        
+        // 保存Token
+        function saveToken() {
+            const token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                alert('请输入Token');
+                return;
+            }
+            localStorage.setItem('api_token', token);
+            API_TOKEN = token;
+            document.getElementById('tokenSetup').style.display = 'none';
+            alert('Token保存成功!');
+        }
         
         // Tab切换
         function switchTab(tabName) {
@@ -303,6 +350,13 @@
                 const response = await fetch(`${API_BASE}/library`, {
                     headers: { 'Authorization': `Bearer ${API_TOKEN}` }
                 });
+                
+                // 检查响应状态
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                }
+                
                 const data = await response.json();
                 
                 if (data.shows && data.shows.length > 0) {
