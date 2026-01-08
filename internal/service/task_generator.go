@@ -6,6 +6,7 @@ import (
 
 	"tv-tracker/internal/models"
 	"tv-tracker/internal/repository"
+	"tv-tracker/internal/timeutil"
 	"tv-tracker/internal/tmdb"
 )
 
@@ -184,7 +185,7 @@ func (t *TaskGenerator) createUpdateTaskIfNeeded(show *models.TVShow, episode *t
 	}
 
 	// Check if air date is today or in the past
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timeutil.Now().Truncate(24 * time.Hour)
 	airDateTruncated := airDate.Truncate(24 * time.Hour)
 
 	if airDateTruncated.After(today) {

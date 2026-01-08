@@ -11,12 +11,13 @@
 }
 
 .dashboard-header h2 {
-  margin: 0;
+  margin: 0 0 0.5rem 0;
 }
 
-.dashboard-actions {
-  display: flex;
-  gap: 1rem;
+.task-summary {
+  margin: 0;
+  color: #a0a0a0;
+  font-size: 0.9rem;
 }
 
 .loading {
@@ -48,11 +49,16 @@
 .task-section h3 {
   margin-bottom: 1rem;
   color: #fff;
+  font-size: 1.1rem;
 }
 
 .empty-message {
   color: #a0a0a0;
   font-style: italic;
+  padding: 1rem;
+  text-align: center;
+  background: #1a1a2e;
+  border-radius: 6px;
 }
 
 .task-list {
@@ -61,43 +67,92 @@
   gap: 0.75rem;
 }
 
-.task-card {
+.task-item {
   background: #1a1a2e;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-left: 4px solid #4a4aff;
+  gap: 1rem;
+  border-left: 3px solid #4a4aff;
 }
 
-.task-card.organize {
+.task-item.organize {
   border-left-color: #ff9800;
 }
 
-.task-info {
+.task-content {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .task-time {
   background: #4a4a6a;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 4px;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
-  min-width: 60px;
-  text-align: center;
+  color: #fff;
+  white-space: nowrap;
 }
 
 .task-name {
   font-weight: 600;
   color: #fff;
+  font-size: 1rem;
 }
 
 .task-desc {
   color: #a0a0a0;
   font-size: 0.9rem;
+}
+
+.task-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-warning {
+  background: #ff9800;
+  color: #fff;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #e68900;
+}
+
+.btn-warning:disabled {
+  background: #b87300;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .task-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .task-content {
+    width: 100%;
+  }
+
+  .task-actions {
+    width: 100%;
+  }
+
+  .task-actions button {
+    flex: 1;
+  }
 }

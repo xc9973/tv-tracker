@@ -1,10 +1,17 @@
 .library-page {
-  max-width: 1000px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
-.library-page h2 {
+.library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
+}
+
+.library-header h2 {
+  margin: 0;
 }
 
 .loading {
@@ -21,85 +28,135 @@
   margin-bottom: 1rem;
 }
 
+.success-message {
+  background: #28a745;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
 .empty-message {
   color: #a0a0a0;
   font-style: italic;
   text-align: center;
   padding: 2rem;
-}
-
-.show-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
-
-.library-card {
   background: #1a1a2e;
-  border-radius: 8px;
-  padding: 1rem;
-  border-left: 4px solid #4a4aff;
+  border-radius: 6px;
 }
 
-.library-card.archived {
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.library-item {
+  background: #1a1a2e;
+  border-radius: 6px;
+  padding: 1rem;
+  border-left: 3px solid #4a4aff;
+}
+
+.library-item.archived {
   opacity: 0.6;
   border-left-color: #6a6a8a;
 }
 
-.library-card-header {
+.library-main {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.25rem;
   margin-bottom: 0.75rem;
 }
 
-.library-show-name {
-  margin: 0;
+.show-name {
   font-size: 1.1rem;
-  color: #fff;
-  flex: 1;
-  margin-right: 0.5rem;
-}
-
-.status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.status-badge.returning {
-  background: #28a745;
+  font-weight: 600;
   color: #fff;
 }
 
-.status-badge.ended {
-  background: #6c757d;
-  color: #fff;
-}
-
-.status-badge.canceled {
-  background: #dc3545;
-  color: #fff;
-}
-
-.status-badge.archived {
-  background: #4a4a6a;
-  color: #a0a0a0;
-}
-
-.status-badge.unknown {
-  background: #4a4a6a;
-  color: #fff;
-}
-
-.library-card-info p {
-  margin: 0.25rem 0;
+.show-info {
   font-size: 0.9rem;
   color: #a0a0a0;
 }
 
-.library-card-info .label {
+.resource-time-section {
+  padding-top: 0.5rem;
+  border-top: 1px solid #2a2a4e;
+}
+
+.view-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.time-label {
   color: #6a6a8a;
+  font-size: 0.9rem;
+}
+
+.time-value {
+  color: #fff;
+  font-weight: 500;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #4da1ff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.edit-mode {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.time-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a6a;
+  background: #12122b;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #4a4aff;
+}
+
+@media (max-width: 600px) {
+  .library-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .edit-mode {
+    width: 100%;
+  }
+
+  .time-input {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .edit-mode button {
+    flex: 1;
+  }
 }

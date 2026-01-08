@@ -1,7 +1,18 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE || '/api',
+});
+
+api.interceptors.request.use((config) => {
+  const token = import.meta.env.VITE_API_TOKEN;
+  if (token) {
+    if (!config.headers) {
+      config.headers = {} as typeof config.headers;
+    }
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export interface Task {
@@ -41,15 +52,31 @@ export interface TVShow {
   updated_at: string;
 }
 
-export interface SyncResult {
-  update_tasks: number;
-  organize_tasks: number;
-  errors: number;
+export interface Episode {
+  id: number;
+  tmdb_id: number;
+  season: number;
+  episode: number;
+  title: string;
+  overview: string;
+  air_date: string;
+}
+
+export interface TodayEpisode {
+  episode: Episode;
+  show_name: string;
+  resource_time: string;
+  show_id: number;
 }
 
 export const getDashboard = async (): Promise<DashboardData> => {
   const response = await api.get<DashboardData>('/dashboard');
   return response.data;
+};
+
+export const getTodayEpisodes = async (): Promise<TodayEpisode[]> => {
+  const response = await api.get<{ episodes: TodayEpisode[] }>('/today');
+  return response.data.episodes;
 };
 
 export const searchTV = async (query: string): Promise<SearchResult[]> => {
@@ -66,13 +93,12 @@ export const subscribe = async (tmdbId: number): Promise<TVShow> => {
   return response.data.show;
 };
 
-export const sync = async (): Promise<SyncResult> => {
-  const response = await api.post<{ result: SyncResult }>('/sync');
-  return response.data.result;
-};
-
 export const completeTask = async (taskId: number): Promise<void> => {
   await api.post(`/tasks/${taskId}/complete`);
+};
+
+export const postponeTask = async (taskId: number): Promise<void> => {
+  await api.post(`/tasks/${taskId}/postpone`);
 };
 
 export const getLibrary = async (): Promise<TVShow[]> => {
@@ -80,8 +106,9 @@ export const getLibrary = async (): Promise<TVShow[]> => {
   return response.data.shows;
 };
 
-export const sendReport = async (): Promise<void> => {
-  await api.post('/report');
+export const updateResourceTime = async (id: number, resourceTime: string): Promise<TVShow> => {
+  const response = await api.put<{ show: TVShow }>(`/shows/${id}/resource-time`, {
+    resource_time: resourceTime,
+  });
+  return response.data.show;
 };
-
-export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200';

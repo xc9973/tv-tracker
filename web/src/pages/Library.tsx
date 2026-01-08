@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLibrary } from '../services/api';
+import { getLibrary, updateResourceTime } from '../services/api';
 import type { TVShow } from '../services/api';
 import './Library.css';
 
@@ -7,37 +7,74 @@ export default function Library() {
   const [shows, setShows] = useState<TVShow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [resourceTimeInput, setResourceTimeInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const fetchLibrary = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getLibrary();
+      setShows(data);
+    } catch (err) {
+      setError('获取片库失败');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchLibrary = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getLibrary();
-        setShows(data);
-      } catch (err) {
-        setError('获取片库失败');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchLibrary();
   }, []);
 
-  const getStatusBadge = (status: string, isArchived: boolean) => {
-    if (isArchived) {
-      return <span className="status-badge archived">已归档</span>;
-    }
+  const getStatusText = (status: string, isArchived: boolean) => {
+    if (isArchived) return '已归档';
     switch (status) {
       case 'Returning Series':
-        return <span className="status-badge returning">连载中</span>;
+        return '连载中';
       case 'Ended':
-        return <span className="status-badge ended">已完结</span>;
+        return '已完结';
       case 'Canceled':
-        return <span className="status-badge canceled">已取消</span>;
+        return '已取消';
       default:
-        return <span className="status-badge unknown">{status}</span>;
+        return status;
+    }
+  };
+
+  const handleEdit = (show: TVShow) => {
+    setEditingId(show.id);
+    setResourceTimeInput(show.resource_time || '');
+    setMessage(null);
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setResourceTimeInput('');
+  };
+
+  const handleSave = async (showId: number) => {
+    const trimmed = resourceTimeInput.trim();
+    if (!trimmed) {
+      setError('请输入资源时间');
+      return;
+    }
+    try {
+      setSaving(true);
+      setError(null);
+      await updateResourceTime(showId, trimmed);
+      setMessage('资源时间已更新');
+      setTimeout(() => setMessage(null), 3000);
+      setEditingId(null);
+      setResourceTimeInput('');
+      await fetchLibrary();
+    } catch (err) {
+      console.error(err);
+      setError('更新资源时间失败');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -47,22 +84,63 @@ export default function Library() {
 
   return (
     <div className="library-page">
-      <h2>我的片库 ({shows.length})</h2>
+      <div className="library-header">
+        <h2>我的片库 ({shows.length})</h2>
+        <button className="btn" onClick={fetchLibrary} disabled={loading}>
+          刷新
+        </button>
+      </div>
+
       {error && <div className="error-message">{error}</div>}
+      {message && <div className="success-message">{message}</div>}
+
       {shows.length === 0 ? (
         <p className="empty-message">暂无订阅剧集，去搜索页面添加吧！</p>
       ) : (
-        <div className="show-grid">
+        <div className="library-list">
           {shows.map((show) => (
-            <div key={show.id} className={`library-card ${show.is_archived ? 'archived' : ''}`}>
-              <div className="library-card-header">
-                <h3 className="library-show-name">{show.name}</h3>
-                {getStatusBadge(show.status, show.is_archived)}
+            <div key={show.id} className={`library-item ${show.is_archived ? 'archived' : ''}`}>
+              <div className="library-main">
+                <span className="show-name">{show.name}</span>
+                <span className="show-info">
+                  {getStatusText(show.status, show.is_archived)} · {show.total_seasons} 季
+                  {show.origin_country && <> · {show.origin_country}</>}
+                </span>
               </div>
-              <div className="library-card-info">
-                <p><span className="label">季数：</span>{show.total_seasons}</p>
-                <p><span className="label">地区：</span>{show.origin_country || '未知'}</p>
-                <p><span className="label">资源时间：</span>{show.resource_time}</p>
+              
+              <div className="resource-time-section">
+                {editingId === show.id ? (
+                  <div className="edit-mode">
+                    <input
+                      type="text"
+                      value={resourceTimeInput}
+                      onChange={(e) => setResourceTimeInput(e.target.value)}
+                      className="time-input"
+                      placeholder="例如 22:00"
+                      disabled={saving}
+                    />
+                    <button
+                      className="btn btn-success"
+                      onClick={() => handleSave(show.id)}
+                      disabled={saving}
+                    >
+                      {saving ? '保存中...' : '保存'}
+                    </button>
+                    <button className="btn" onClick={handleCancel} disabled={saving}>
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <div className="view-mode">
+                    <span className="time-label">资源时间：</span>
+                    <span className="time-value">{show.resource_time || '待定'}</span>
+                    {!show.is_archived && (
+                      <button className="btn-link" onClick={() => handleEdit(show)}>
+                        编辑
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

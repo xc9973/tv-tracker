@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
-  tv-tracker:
-    build: .
-    container_name: tv-tracker
+  tv-tracker-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: tv-tracker-api
     restart: unless-stopped
     environment:
       - TMDB_API_KEY=${TMDB_API_KEY}
@@ -12,6 +14,38 @@ services:
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
       - DB_PATH=/app/data/tv_tracker.db
       - BACKUP_DIR=/app/data/backups
-      - REPORT_TIME=09:00
+      - REPORT_TIME=${REPORT_TIME:-09:00}
+      - WEB_ENABLED=true
+      - WEB_LISTEN_ADDR=:18080
+      - WEB_API_TOKEN=${WEB_API_TOKEN}
     volumes:
-      - ./data:/app/data  # 持久化数据库和备份
+      - ./data:/app/data
+    expose:
+      - "18080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:18080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - tv-tracker-net
+
+  tv-tracker-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: tv-tracker-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/tv-tracker-docker.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      tv-tracker-api:
+        condition: service_healthy
+    networks:
+      - tv-tracker-net
+
+networks:
+  tv-tracker-net:
+    driver: bridge

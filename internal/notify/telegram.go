@@ -14,6 +14,7 @@ import (
 	"tv-tracker/internal/models"
 	"tv-tracker/internal/repository"
 	"tv-tracker/internal/service"
+	"tv-tracker/internal/timeutil"
 	"tv-tracker/internal/tmdb"
 )
 
@@ -29,8 +30,8 @@ const (
 // TelegramBot handles Telegram bot interactions
 type TelegramBot struct {
 	bot         *tele.Bot
-	chatID      int64  // 管理员 Chat ID
-	channelID   int64  // 频道 ID，用于发送日报
+	chatID      int64 // 管理员 Chat ID
+	channelID   int64 // 频道 ID，用于发送日报
 	state       BotState
 	stateMu     sync.RWMutex
 	tmdb        *tmdb.Client
@@ -103,7 +104,6 @@ func (t *TelegramBot) registerHandlers() {
 	t.bot.Handle(&tele.InlineButton{Unique: "complete"}, t.authMiddleware(t.HandleCompleteTaskCallback))
 	t.bot.Handle(&tele.InlineButton{Unique: "archive"}, t.authMiddleware(t.HandleArchiveCallback))
 }
-
 
 // authMiddleware checks if the user is authorized
 func (t *TelegramBot) authMiddleware(next tele.HandlerFunc) tele.HandlerFunc {
@@ -226,12 +226,11 @@ func (t *TelegramBot) handleAPIKeyInput(c tele.Context) error {
 	return c.Send("✅ TMDB API Key 已更新\n\n⚠️ 注意：需要重启服务才能生效", t.BackButtonKeyboard())
 }
 
-
 // HandleTasksCallback handles the "今日更新" button
 func (t *TelegramBot) HandleTasksCallback(c tele.Context) error {
 	// 获取今天的日期
-	today := time.Now().Format("2006-01-02")
-	
+	today := timeutil.Now().Format("2006-01-02")
+
 	// 查询今天播出的剧集
 	episodes, err := t.episodeRepo.GetTodayEpisodesWithShowInfo(today)
 	if err != nil {
@@ -333,7 +332,6 @@ func (t *TelegramBot) HandleBackCallback(c tele.Context) error {
 	return c.Edit(t.FormatMainMenu(), &tele.SendOptions{ParseMode: tele.ModeHTML}, t.MainMenuKeyboard())
 }
 
-
 // HandleCompleteTaskCallback handles the "已完成" button for UPDATE tasks
 func (t *TelegramBot) HandleCompleteTaskCallback(c tele.Context) error {
 	// Parse task ID from callback data
@@ -382,7 +380,7 @@ func (t *TelegramBot) FormatMainMenu() string {
 // FormatTodayEpisodes formats today's episodes list
 func (t *TelegramBot) FormatTodayEpisodes(episodes []repository.TodayEpisodeInfo) string {
 	var sb strings.Builder
-	today := time.Now().Format("2006-01-02")
+	today := timeutil.Now().Format("2006-01-02")
 	sb.WriteString(fmt.Sprintf("📺 <b>今日更新</b> (%s)\n\n", today))
 
 	for i, info := range episodes {
@@ -480,7 +478,6 @@ func (t *TelegramBot) FormatAdminMenu() string {
 	return sb.String()
 }
 
-
 // FormatDailyReport formats the daily report message
 func (t *TelegramBot) FormatDailyReport(tasks []models.Task) string {
 	return FormatDailyReport(tasks)
@@ -488,7 +485,7 @@ func (t *TelegramBot) FormatDailyReport(tasks []models.Task) string {
 
 // FormatDailyReport formats tasks into a daily report message (standalone function)
 func FormatDailyReport(tasks []models.Task) string {
-	today := time.Now().Format("2006-01-02")
+	today := timeutil.Now().Format("2006-01-02")
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("📺 <b>今日更新日报</b> (%s)\n\n", today))
@@ -603,8 +600,8 @@ func (t *TelegramBot) TaskListKeyboard(tasks []models.Task, action string) *tele
 // SendDailyReport sends the daily report to the channel
 func (t *TelegramBot) SendDailyReport() error {
 	// 获取今天的日期
-	today := time.Now().Format("2006-01-02")
-	
+	today := timeutil.Now().Format("2006-01-02")
+
 	// 查询今天播出的剧集
 	episodes, err := t.episodeRepo.GetTodayEpisodesWithShowInfo(today)
 	if err != nil {
@@ -619,7 +616,7 @@ func (t *TelegramBot) SendDailyReport() error {
 
 // FormatDailyReportFromEpisodes formats today's episodes into a daily report
 func (t *TelegramBot) FormatDailyReportFromEpisodes(episodes []repository.TodayEpisodeInfo) string {
-	today := time.Now().Format("2006-01-02")
+	today := timeutil.Now().Format("2006-01-02")
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("📺 <b>今日更新日报</b> (%s)\n\n", today))

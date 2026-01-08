@@ -7,14 +7,17 @@ export default function Layout() {
       <header className="header">
         <h1 className="logo">📺 TV Tracker</h1>
         <nav className="nav">
-          <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            看板
+          <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            今日更新
+          </NavLink>
+          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            任务看板
           </NavLink>
           <NavLink to="/search" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            搜索
+            搜索订阅
           </NavLink>
           <NavLink to="/library" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            片库
+            剧集库
           </NavLink>
         </nav>
       </header>

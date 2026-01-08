@@ -2,9 +2,9 @@ package repository
 
 import (
 	"database/sql"
-	"time"
 
 	"tv-tracker/internal/models"
+	"tv-tracker/internal/timeutil"
 )
 
 // TaskRepository handles Task database operations
@@ -19,7 +19,7 @@ func NewTaskRepository(sqliteDB *SQLiteDB) *TaskRepository {
 
 // Create inserts a new Task into the database
 func (r *TaskRepository) Create(task *models.Task) error {
-	now := time.Now()
+	now := timeutil.Now()
 	result, err := r.db.Exec(`
 		INSERT INTO tasks (tv_show_id, task_type, description, is_completed, created_at)
 		VALUES (?, ?, ?, ?, ?)
@@ -155,4 +155,27 @@ func (r *TaskRepository) GetByID(taskID int64) (*models.Task, error) {
 		return nil, err
 	}
 	return task, nil
+}
+
+// Delete removes a task by its ID
+func (r *TaskRepository) Delete(taskID int64) error {
+	_, err := r.db.Exec(`DELETE FROM tasks WHERE id = ?`, taskID)
+	return err
+}
+
+// CreateWithDate inserts a new Task with a specific created_at date
+func (r *TaskRepository) CreateWithDate(task *models.Task, createdAt string) error {
+	result, err := r.db.Exec(`
+		INSERT INTO tasks (tv_show_id, task_type, description, is_completed, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, task.TVShowID, task.TaskType, task.Description, task.IsCompleted, createdAt)
+	if err != nil {
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	task.ID = id
+	return nil
 }

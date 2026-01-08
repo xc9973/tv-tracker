@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"tv-tracker/internal/timeutil"
 )
 
 // BackupService handles database backup operations
@@ -36,7 +38,7 @@ func (b *BackupService) Backup() (string, error) {
 	}
 
 	// Generate backup filename with timestamp
-	timestamp := time.Now().Format("2006-01-02_150405")
+	timestamp := timeutil.Now().Format("2006-01-02_150405")
 	backupName := fmt.Sprintf("tv_tracker_backup_%s.db", timestamp)
 	backupPath := filepath.Join(b.backupDir, backupName)
 
@@ -75,7 +77,6 @@ func (b *BackupService) GetLastBackupTime() (time.Time, error) {
 
 	return info.ModTime(), nil
 }
-
 
 // CleanOldBackups removes old backups, keeping only the most recent ones
 // Requirements: 11.3

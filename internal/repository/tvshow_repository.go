@@ -2,9 +2,9 @@ package repository
 
 import (
 	"database/sql"
-	"time"
 
 	"tv-tracker/internal/models"
+	"tv-tracker/internal/timeutil"
 )
 
 // TVShowRepository handles TVShow database operations
@@ -19,7 +19,7 @@ func NewTVShowRepository(sqliteDB *SQLiteDB) *TVShowRepository {
 
 // Create inserts a new TVShow into the database
 func (r *TVShowRepository) Create(show *models.TVShow) error {
-	now := time.Now()
+	now := timeutil.Now()
 	result, err := r.db.Exec(`
 		INSERT INTO tv_shows (tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -129,7 +129,7 @@ func (r *TVShowRepository) GetAll() ([]models.TVShow, error) {
 
 // Update updates an existing TVShow in the database
 func (r *TVShowRepository) Update(show *models.TVShow) error {
-	now := time.Now()
+	now := timeutil.Now()
 	_, err := r.db.Exec(`
 		UPDATE tv_shows 
 		SET name = ?, total_seasons = ?, status = ?, origin_country = ?, resource_time = ?, is_archived = ?, updated_at = ?
@@ -144,7 +144,7 @@ func (r *TVShowRepository) Update(show *models.TVShow) error {
 
 // Archive sets a TVShow as archived
 func (r *TVShowRepository) Archive(showID int64) error {
-	now := time.Now()
+	now := timeutil.Now()
 	_, err := r.db.Exec(`
 		UPDATE tv_shows SET is_archived = TRUE, updated_at = ? WHERE id = ?
 	`, now, showID)

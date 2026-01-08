@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { searchTV, subscribe, TMDB_IMAGE_BASE } from '../services/api';
+import { searchTV, subscribe } from '../services/api';
 import type { SearchResult } from '../services/api';
 import './Search.css';
 
@@ -74,35 +74,32 @@ export default function Search() {
       </form>
       {error && <div className="error-message">{error}</div>}
       {message && <div className="info-message">{message}</div>}
-      <div className="search-results">
-        {results.map((show) => (
-          <div key={show.id} className="show-card">
-            <div className="show-poster">
-              {show.poster_path ? (
-                <img src={`${TMDB_IMAGE_BASE}${show.poster_path}`} alt={show.name} />
-              ) : (
-                <div className="no-poster">无海报</div>
-              )}
+      
+      {results.length > 0 && (
+        <div className="search-results">
+          <div className="results-header">搜索结果 ({results.length})</div>
+          {results.map((show) => (
+            <div key={show.id} className="show-item">
+              <div className="show-main">
+                <span className="show-name">{show.name}</span>
+                <span className="show-meta">
+                  首播：{show.first_air_date || '未知'}
+                  {show.origin_country && show.origin_country.length > 0 && (
+                    <> · 地区：{show.origin_country.join(', ')}</>
+                  )}
+                </span>
+              </div>
+              <button
+                className="btn btn-success"
+                onClick={() => handleSubscribe(show.id)}
+                disabled={subscribing === show.id}
+              >
+                {subscribing === show.id ? '订阅中...' : '+ 订阅'}
+              </button>
             </div>
-            <div className="show-info">
-              <h3 className="show-name">{show.name}</h3>
-              <p className="show-date">
-                首播：{show.first_air_date || '未知'}
-              </p>
-              {show.origin_country && show.origin_country.length > 0 && (
-                <p className="show-country">地区：{show.origin_country.join(', ')}</p>
-              )}
-            </div>
-            <button
-              className="btn btn-success"
-              onClick={() => handleSubscribe(show.id)}
-              disabled={subscribing === show.id}
-            >
-              {subscribing === show.id ? '订阅中...' : '+ 订阅'}
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

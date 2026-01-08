@@ -5,6 +5,7 @@ import (
 
 	"tv-tracker/internal/models"
 	"tv-tracker/internal/repository"
+	"tv-tracker/internal/timeutil"
 )
 
 // DashboardData contains the data for the task dashboard
@@ -81,6 +82,40 @@ func (s *TaskBoardService) CompleteTask(taskID int64) error {
 		if err := s.showRepo.Archive(task.TVShowID); err != nil {
 			return fmt.Errorf("failed to archive show: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// PostponeTask postpones a task to tomorrow by deleting it and recreating it with tomorrow's date
+func (s *TaskBoardService) PostponeTask(taskID int64) error {
+	// Get the task first
+	task, err := s.taskRepo.GetByID(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return fmt.Errorf("task not found: %d", taskID)
+	}
+
+	// Calculate tomorrow's date based on current time
+	tomorrow := timeutil.Now().AddDate(0, 0, 1).Format("2006-01-02 15:04:05")
+
+	// Create a new task for tomorrow
+	newTask := &models.Task{
+		TVShowID:    task.TVShowID,
+		TaskType:    task.TaskType,
+		Description: task.Description,
+		IsCompleted: false,
+	}
+
+	if err := s.taskRepo.CreateWithDate(newTask, tomorrow); err != nil {
+		return fmt.Errorf("failed to create postponed task: %w", err)
+	}
+
+	// Delete the original task
+	if err := s.taskRepo.Delete(taskID); err != nil {
+		return fmt.Errorf("failed to delete original task: %w", err)
 	}
 
 	return nil

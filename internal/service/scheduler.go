@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"tv-tracker/internal/timeutil"
 )
 
-// ReportSender interface for sending daily reports
-type ReportSender interface {
-	SendDailyReport() error
-}
 
 // Scheduler handles scheduled tasks
 // Requirements: 9.1, 11.1
@@ -91,10 +89,9 @@ func (s *Scheduler) runWeeklyBackupScheduler() {
 	}
 }
 
-
 // calculateNextReportTime calculates the next time to send the daily report
 func (s *Scheduler) calculateNextReportTime() time.Time {
-	now := time.Now()
+	now := timeutil.Now()
 
 	// Parse report time
 	hour, minute := 8, 0 // Default to 08:00
@@ -115,7 +112,7 @@ func (s *Scheduler) calculateNextReportTime() time.Time {
 
 // calculateNextBackupTime calculates the next Sunday at 03:00
 func (s *Scheduler) calculateNextBackupTime() time.Time {
-	now := time.Now()
+	now := timeutil.Now()
 
 	// Find next Sunday
 	daysUntilSunday := (7 - int(now.Weekday())) % 7

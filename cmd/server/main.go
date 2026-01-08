@@ -1,14 +1,21 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
+	"time"
 
+	"github.com/gin-gonic/gin"
+
+	"tv-tracker/internal/handler"
 	"tv-tracker/internal/notify"
 	"tv-tracker/internal/repository"
 	"tv-tracker/internal/service"
@@ -19,11 +26,14 @@ import (
 type Config struct {
 	TMDBAPIKey        string
 	TelegramBotToken  string
-	TelegramChatID    int64  // 管理员个人 Chat ID
-	TelegramChannelID int64  // 频道 ID，用于发送日报
+	TelegramChatID    int64 // 管理员个人 Chat ID
+	TelegramChannelID int64 // 频道 ID，用于发送日报
 	DBPath            string
 	BackupDir         string
 	ReportTime        string // Format: "HH:MM"
+	WEBEnabled        bool
+	WEBListenAddr     string
+	WEBAPIToken       string
 }
 
 func main() {
@@ -60,33 +70,44 @@ func main() {
 	taskBoard := service.NewTaskBoardService(taskRepo, showRepo)
 	backupSvc := service.NewBackupService(config.DBPath, config.BackupDir)
 
+	disableBot, _ := strconv.ParseBool(getEnv("DISABLE_BOT", "false"))
+
 	// Initialize Telegram Bot
-	if config.TelegramBotToken == "" || config.TelegramChatID == 0 {
-		log.Fatal("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
-	}
+	var bot *notify.TelegramBot
+	if disableBot {
+		log.Println("DISABLE_BOT=true; Telegram bot disabled")
+	} else {
+		if config.TelegramBotToken == "" || config.TelegramChatID == 0 {
+			log.Fatal("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
+		}
 
-	deps := notify.Dependencies{
-		TMDB:        tmdbClient,
-		SubMgr:      subManager,
-		TaskGen:     taskGenerator,
-		TaskBoard:   taskBoard,
-		EpisodeRepo: episodeRepo,
-		BackupSvc:   backupSvc,
-	}
+		deps := notify.Dependencies{
+			TMDB:        tmdbClient,
+			SubMgr:      subManager,
+			TaskGen:     taskGenerator,
+			TaskBoard:   taskBoard,
+			EpisodeRepo: episodeRepo,
+			BackupSvc:   backupSvc,
+		}
 
-	// 如果没有配置频道 ID，则使用管理员 ID 发送日报
-	channelID := config.TelegramChannelID
-	if channelID == 0 {
-		channelID = config.TelegramChatID
-	}
+		// 如果没有配置频道 ID，则使用管理员 ID 发送日报
+		channelID := config.TelegramChannelID
+		if channelID == 0 {
+			channelID = config.TelegramChatID
+		}
 
-	bot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, channelID, deps)
-	if err != nil {
-		log.Fatalf("Failed to create Telegram bot: %v", err)
+		newBot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, channelID, deps)
+		if err != nil {
+			log.Fatalf("Failed to create Telegram bot: %v", err)
+		}
+		bot = newBot
 	}
 
 	// CLI mode: send daily report and exit
 	if *reportMode {
+		if bot == nil {
+			log.Fatal("Report mode requires Telegram bot; set DISABLE_BOT=false")
+		}
 		log.Println("Sending daily report...")
 		if err := bot.SendDailyReport(); err != nil {
 			log.Fatalf("Failed to send daily report: %v", err)
@@ -95,32 +116,95 @@ func main() {
 		return
 	}
 
-	// Initialize scheduler
-	scheduler := service.NewScheduler(bot, backupSvc, config.ReportTime)
-	scheduler.Start()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	// Handle graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	var wg sync.WaitGroup
 
-	go func() {
-		<-sigChan
-		log.Println("Shutting down...")
+	// Initialize scheduler (requires bot for daily report)
+	var scheduler *service.Scheduler
+	if bot != nil {
+		scheduler = service.NewScheduler(bot, backupSvc, config.ReportTime)
+		scheduler.Start()
+	} else {
+		log.Println("Scheduler disabled because Telegram bot is disabled")
+	}
+
+	// Optional HTTP server
+	var httpServer *http.Server
+	if config.WEBEnabled {
+		if config.WEBAPIToken == "" {
+			log.Fatal("WEB_ENABLED=true but WEB_API_TOKEN not set")
+		}
+
+		router := gin.Default()
+		httpHandler := handler.NewHTTPHandler(
+			tmdbClient,
+			subManager,
+			taskBoard,
+			episodeRepo,
+			showRepo,
+			backupSvc,
+			config.WEBAPIToken,
+		)
+		httpHandler.RegisterRoutes(router)
+
+		httpServer = &http.Server{
+			Addr:    config.WEBListenAddr,
+			Handler: router,
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			log.Printf("HTTP API listening on %s", config.WEBListenAddr)
+			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTP server error: %v", err)
+			}
+		}()
+	} else {
+		log.Println("WEB_ENABLED=false; HTTP API disabled")
+	}
+
+	// Telegram bot
+	if bot != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			log.Printf("TV Tracker bot started. Chat ID: %d", config.TelegramChatID)
+			bot.Start()
+		}()
+	}
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	log.Println("Shutting down...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if scheduler != nil {
 		scheduler.Stop()
+	}
+	if bot != nil {
 		bot.Stop()
-		os.Exit(0)
-	}()
+	}
+	if httpServer != nil {
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
+	}
 
-	// Start bot (blocking)
-	log.Printf("TV Tracker bot started. Chat ID: %d", config.TelegramChatID)
-	bot.Start()
+	wg.Wait()
+	log.Println("Shutdown complete")
 }
-
 
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	chatID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHAT_ID", "0"), 10, 64)
 	channelID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHANNEL_ID", "0"), 10, 64)
+
+	webEnabled, _ := strconv.ParseBool(getEnv("WEB_ENABLED", "false"))
 
 	config := &Config{
 		TMDBAPIKey:        getEnv("TMDB_API_KEY", ""),
@@ -130,6 +214,9 @@ func loadConfig() *Config {
 		DBPath:            getEnv("DB_PATH", "tv_tracker.db"),
 		BackupDir:         getEnv("BACKUP_DIR", "backups"),
 		ReportTime:        getEnv("REPORT_TIME", "08:00"),
+		WEBEnabled:        webEnabled,
+		WEBListenAddr:     getEnv("WEB_LISTEN_ADDR", ":18080"),
+		WEBAPIToken:       getEnv("WEB_API_TOKEN", ""),
 	}
 
 	// Validate required configuration

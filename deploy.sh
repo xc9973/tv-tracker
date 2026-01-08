@@ -26,6 +26,6 @@ docker compose up -d
 echo ""
 echo "✅ 部署完成!"
 echo ""
-echo "📍 访问地址: http://your-server-ip:8080"
+echo "📍 访问地址: http://your-server-ip:18080"
 echo "📊 查看日志: docker compose logs -f"
 echo "🛑 停止服务: docker compose down"

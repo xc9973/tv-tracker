@@ -97,16 +97,17 @@ func (r *EpisodeRepository) GetByAirDate(date string) ([]models.Episode, error) 
 
 // TodayEpisodeInfo contains episode info with show details for today's updates
 type TodayEpisodeInfo struct {
-	Episode      models.Episode
-	ShowName     string
-	ResourceTime string
+	Episode      models.Episode `json:"episode"`
+	ShowName     string         `json:"show_name"`
+	ResourceTime string         `json:"resource_time"`
+	ShowID       int64          `json:"show_id"`
 }
 
 // GetTodayEpisodesWithShowInfo retrieves today's episodes with show information
 func (r *EpisodeRepository) GetTodayEpisodesWithShowInfo(date string) ([]TodayEpisodeInfo, error) {
 	rows, err := r.db.Query(`
 		SELECT e.id, e.tmdb_id, e.season, e.episode, e.title, e.overview, e.air_date,
-		       s.name, s.resource_time
+		       s.name, s.resource_time, s.id
 		FROM episodes e
 		JOIN tv_shows s ON e.tmdb_id = s.tmdb_id
 		WHERE e.air_date = ? AND s.is_archived = FALSE
@@ -124,7 +125,7 @@ func (r *EpisodeRepository) GetTodayEpisodesWithShowInfo(date string) ([]TodayEp
 		err := rows.Scan(
 			&info.Episode.ID, &info.Episode.TMDBID, &info.Episode.Season,
 			&info.Episode.Episode, &info.Episode.Title, &info.Episode.Overview, &airDate,
-			&info.ShowName, &info.ResourceTime,
+			&info.ShowName, &info.ResourceTime, &info.ShowID,
 		)
 		if err != nil {
 			return nil, err

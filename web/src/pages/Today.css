@@ -1,0 +1,31 @@
+/* 极简样式 - 仅展示关键信息 */
+.today.minimal {
+  padding: 12px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  max-width: 900px;
+  margin: 0 auto;
+  color: #111;
+}
+
+.header-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.title { font-weight: 600; }
+.meta { color: #666; font-size: 0.9rem; }
+.refresh { margin-left: auto; padding: 4px 8px; font-size: 0.85rem; }
+
+.simple-list { list-style: none; padding: 0; margin: 8px 0 0 0; }
+.simple-item { padding: 6px 0; border-bottom: 1px solid #eee; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.sname { font-weight:600; }
+.ep { color:#333; font-size:0.95rem; }
+.title { color:#444; }
+.time { margin-left: auto; color:#0b63d6; font-weight:500; }
+.sep { color:#999; margin: 0 6px; }
+
+@media (max-width: 600px) {
+  .time { display:block; width:100%; margin-top:4px; }
+}
