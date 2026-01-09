@@ -77,7 +77,30 @@ WEB_API_TOKEN=your_secret_token
 DISABLE_BOT=true
 ```
 
-### 方案 3: 临时禁用配置验证（不推荐）
+### 方案 3: 修复 data 目录权限（readonly database）
+
+如果日志提示 `attempt to write a readonly database`，说明挂载的 `./data` 目录权限不足。容器内运行用户是 `uid=1000`，需要将宿主机目录授权给该用户。
+
+**一键脚本（推荐）**:
+```bash
+cd /opt/tv-tracker
+chmod +x fix-permissions.sh
+./fix-permissions.sh
+```
+
+**手动命令**:
+```bash
+cd /opt/tv-tracker
+
+docker compose down
+sudo chown -R 1000:1000 ./data
+sudo chmod -R 755 ./data
+
+docker compose up -d
+docker logs -f tv-tracker
+```
+
+### 方案 4: 临时禁用配置验证（不推荐）
 
 如果你想暂时跳过验证进行调试，可以修改代码中的验证逻辑。但**不推荐**这样做，因为会导致运行时错误。
 
