@@ -336,10 +336,16 @@
             <!-- 搜索订阅 -->
             <div id="search" class="section active">
                 <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="输入剧集名称搜索..." onkeypress="handleSearchEnter(event)">
+                    <input type="text" id="searchInput" placeholder="输入剧集名称或TMDB ID..." onkeypress="handleSearchEnter(event)">
                     <button class="btn" onclick="searchShows()">搜索</button>
                 </div>
                 <div id="searchResults" class="list"></div>
+            </div>
+            
+            <!-- 追更日历 -->
+            <div id="calendar" class="section">
+                <h2 style="margin-bottom: 20px;">本周追更日历</h2>
+                <div id="calendarWeek" class="calendar-week"></div>
             </div>
             
             <!-- 今日更新 -->
@@ -491,11 +497,12 @@
                 const data = await response.json();
                 
                 if (data.episodes && data.episodes.length > 0) {
-                    list.innerHTML = data.episodes.map(ep => `
+                    list.innerHTML = data.episodes.map(item => `
                         <div class="list-item">
                             <div class="list-item-info">
-                                <h3>${ep.show_name} - S${ep.season_number}E${ep.episode_number}</h3>
-                                <p>${ep.name} · ${ep.air_date}</p>
+                                <h3>${item.show_name} - S${item.episode.season}E${item.episode.episode}</h3>
+                                <p>${item.episode.title || '未知标题'} · ${item.episode.air_date || ''}</p>
+                                ${item.resource_time ? `<p style="font-size: 12px; color: #667eea;">⏰ 资源时间: ${item.resource_time}</p>` : ''}
                             </div>
                         </div>
                     `).join('');
