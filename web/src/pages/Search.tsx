@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { searchTV, subscribe } from '../services/api';
 import type { SearchResult } from '../services/api';
+import { isApiError } from '../services/api';
 import './Search.css';
 
 export default function Search() {
@@ -41,9 +42,8 @@ export default function Search() {
       setMessage('订阅成功！');
       setTimeout(() => setMessage(null), 3000);
     } catch (err: unknown) {
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { status?: number } };
-        if (axiosErr.response?.status === 409) {
+      if (isApiError(err)) {
+        if (err.status === 409) {
           setError('该剧集已订阅');
         } else {
           setError('订阅失败');

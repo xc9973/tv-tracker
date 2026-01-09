@@ -44,6 +44,7 @@ func (s *SQLiteDB) InitSchema() error {
 		status TEXT DEFAULT 'Unknown',
 		origin_country TEXT DEFAULT '',
 		resource_time TEXT DEFAULT '待定',
+		resource_time_is_manual BOOLEAN DEFAULT FALSE,
 		is_archived BOOLEAN DEFAULT FALSE,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -68,6 +69,13 @@ func (s *SQLiteDB) InitSchema() error {
 		is_completed BOOLEAN DEFAULT FALSE,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (tv_show_id) REFERENCES tv_shows(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS tmdb_cache (
+		tmdb_id INTEGER PRIMARY KEY,
+		payload_json TEXT NOT NULL,
+		fetched_at TIMESTAMP NOT NULL,
+		language TEXT NOT NULL
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_episodes_air_date ON episodes(air_date);

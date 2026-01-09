@@ -29,6 +29,7 @@ type HTTPHandler struct {
 	episodeRepo *repository.EpisodeRepository
 	showRepo    *repository.TVShowRepository
 	backupSvc   *service.BackupService
+	showSync    *service.ShowSyncService
 	apiToken    string
 	staticDir   string
 }
@@ -41,6 +42,7 @@ func NewHTTPHandler(
 	episodeRepo *repository.EpisodeRepository,
 	showRepo *repository.TVShowRepository,
 	backupSvc *service.BackupService,
+	showSync *service.ShowSyncService,
 	apiToken string,
 ) *HTTPHandler {
 	// Get static directory from environment or use default
@@ -56,6 +58,7 @@ func NewHTTPHandler(
 		episodeRepo: episodeRepo,
 		showRepo:    showRepo,
 		backupSvc:   backupSvc,
+		showSync:    showSync,
 		apiToken:    strings.TrimSpace(apiToken),
 		staticDir:   staticDir,
 	}
@@ -103,6 +106,7 @@ func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 	api.POST("/subscribe", h.Subscribe)
 	api.DELETE("/subscribe/:id", h.Unsubscribe)
 	api.GET("/library", h.GetLibrary)
+	api.POST("/tv/:id/refresh", h.RefreshShow)
 
 	// Tasks
 	api.POST("/tasks/:id/complete", h.CompleteTask)
@@ -340,12 +344,35 @@ func (h *HTTPHandler) UpdateResourceTime(c *gin.Context) {
 	}
 
 	show.ResourceTime = req.ResourceTime
+	show.ResourceTimeIsManual = true
 	if err := h.showRepo.Update(show); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"show": show})
+}
+
+// RefreshShow triggers a manual refresh for a single show.
+func (h *HTTPHandler) RefreshShow(c *gin.Context) {
+	id, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.showSync == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "show sync service not configured"})
+		return
+	}
+
+	details, err := h.showSync.RefreshShow(int(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"show": details})
 }
 
 // UpdateEpisodeAirDate updates the air date for a specific episode

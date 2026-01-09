@@ -12,16 +12,17 @@ const (
 
 // TVShow represents a subscribed TV show
 type TVShow struct {
-	ID            int64     `json:"id"`
-	TMDBID        int       `json:"tmdb_id"`
-	Name          string    `json:"name"`
-	TotalSeasons  int       `json:"total_seasons"`
-	Status        string    `json:"status"`         // Returning Series, Ended, Canceled
-	OriginCountry string    `json:"origin_country"` // Country code (US, CN, JP, etc.)
-	ResourceTime  string    `json:"resource_time"`  // Expected resource availability time
-	IsArchived    bool      `json:"is_archived"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                   int64     `json:"id"`
+	TMDBID               int       `json:"tmdb_id"`
+	Name                 string    `json:"name"`
+	TotalSeasons         int       `json:"total_seasons"`
+	Status               string    `json:"status"`         // Returning Series, Ended, Canceled
+	OriginCountry        string    `json:"origin_country"` // Country code (US, CN, JP, etc.)
+	ResourceTime         string    `json:"resource_time"`  // Expected resource availability time
+	ResourceTimeIsManual bool      `json:"resource_time_is_manual"`
+	IsArchived           bool      `json:"is_archived"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // Episode represents a cached episode from TMDB

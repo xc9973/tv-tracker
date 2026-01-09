@@ -20,6 +20,7 @@ type SyncResult struct {
 // TaskGenerator handles task generation based on show status and episode updates
 type TaskGenerator struct {
 	tmdbClient  *tmdb.Client
+	cacheSvc    *TMDBCacheService
 	showRepo    *repository.TVShowRepository
 	episodeRepo *repository.EpisodeRepository
 	taskRepo    *repository.TaskRepository
@@ -28,12 +29,14 @@ type TaskGenerator struct {
 // NewTaskGenerator creates a new TaskGenerator
 func NewTaskGenerator(
 	tmdbClient *tmdb.Client,
+	cacheSvc *TMDBCacheService,
 	showRepo *repository.TVShowRepository,
 	episodeRepo *repository.EpisodeRepository,
 	taskRepo *repository.TaskRepository,
 ) *TaskGenerator {
 	return &TaskGenerator{
 		tmdbClient:  tmdbClient,
+		cacheSvc:    cacheSvc,
 		showRepo:    showRepo,
 		episodeRepo: episodeRepo,
 		taskRepo:    taskRepo,
@@ -58,12 +61,15 @@ func (t *TaskGenerator) SyncAll() (*SyncResult, error) {
 	}
 
 	for _, show := range shows {
-		// Fetch latest data from TMDB
-		tmdbData, err := t.tmdbClient.GetTVDetails(show.TMDBID)
+		// Fetch latest data from cache only.
+		tmdbData, ok, err := t.cacheSvc.GetCached(show.TMDBID)
 		if err != nil {
-			// Log error and continue with remaining shows (resilience)
-			fmt.Printf("Warning: failed to fetch TMDB data for show %d (%s): %v\n", show.TMDBID, show.Name, err)
+			fmt.Printf("Warning: failed to load cached TMDB data for show %d (%s): %v\n", show.TMDBID, show.Name, err)
 			result.Errors++
+			continue
+		}
+		if !ok {
+			// No cache yet; skip until manual refresh is triggered.
 			continue
 		}
 
@@ -73,7 +79,7 @@ func (t *TaskGenerator) SyncAll() (*SyncResult, error) {
 			result.Errors++
 		}
 
-		// Sync latest season episodes
+		// Sync latest season episodes (manual refresh only)
 		if tmdbData.NumberOfSeasons > 0 {
 			if err := t.syncSeasonEpisodes(show.TMDBID, tmdbData.NumberOfSeasons); err != nil {
 				fmt.Printf("Warning: failed to sync episodes for show %d: %v\n", show.TMDBID, err)
@@ -134,8 +140,13 @@ func (t *TaskGenerator) updateShowData(show *models.TVShow, tmdbData *tmdb.TVDet
 
 	// Update origin country if available
 	if len(tmdbData.OriginCountry) > 0 {
-		show.OriginCountry = tmdbData.OriginCountry[0]
-		show.ResourceTime = InferResourceTime(show.OriginCountry)
+		originCountry := tmdbData.OriginCountry[0]
+		if show.OriginCountry != originCountry {
+			show.OriginCountry = originCountry
+			if !show.ResourceTimeIsManual {
+				show.ResourceTime = InferResourceTime(originCountry)
+			}
+		}
 	}
 
 	return t.showRepo.Update(show)

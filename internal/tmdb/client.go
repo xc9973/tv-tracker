@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,7 @@ type Client struct {
 	apiKey      string
 	baseURL     string
 	httpClient  *http.Client
+	mu          sync.Mutex
 	lastRequest time.Time
 }
 
@@ -281,6 +283,9 @@ func (c *Client) checkResponse(resp *http.Response) error {
 
 // rateLimit ensures requests are spaced out to avoid hitting API limits
 func (c *Client) rateLimit() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	elapsed := time.Since(c.lastRequest)
 	if elapsed < requestInterval {
 		time.Sleep(requestInterval - elapsed)

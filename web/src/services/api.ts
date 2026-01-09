@@ -1,5 +1,21 @@
 import axios from 'axios';
 
+export class ApiError extends Error {
+  status?: number;
+  data?: unknown;
+  originalError?: unknown;
+
+  constructor(message: string, options?: { status?: number; data?: unknown; originalError?: unknown }) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = options?.status;
+    this.data = options?.data;
+    this.originalError = options?.originalError;
+  }
+}
+
+export const isApiError = (err: unknown): err is ApiError => err instanceof ApiError;
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
 });
@@ -22,14 +38,17 @@ api.interceptors.response.use(
   (error) => {
     let errorMessage = '请求失败，请稍后重试';
     
+    const status: number | undefined = error?.response?.status;
+    const data: unknown = error?.response?.data;
+
     if (error.response) {
       // Server responded with error status
-      const status = error.response.status;
-      const data = error.response.data;
+      const responseStatus = status;
+      const responseData = data as any;
       
-      switch (status) {
+      switch (responseStatus) {
         case 400:
-          errorMessage = data?.error || '请求参数错误';
+          errorMessage = responseData?.error || '请求参数错误';
           break;
         case 401:
           errorMessage = '未授权，请检查访问令牌';
@@ -41,13 +60,13 @@ api.interceptors.response.use(
           errorMessage = '请求的资源不存在';
           break;
         case 409:
-          errorMessage = data?.error || '资源冲突';
+          errorMessage = responseData?.error || '资源冲突';
           break;
         case 500:
           errorMessage = '服务器错误，请稍后重试';
           break;
         default:
-          errorMessage = data?.error || `请求失败 (${status})`;
+          errorMessage = responseData?.error || `请求失败 (${responseStatus})`;
       }
     } else if (error.request) {
       // Request made but no response
@@ -59,11 +78,7 @@ api.interceptors.response.use(
     
     console.error('API Error:', errorMessage, error);
     
-    // Create user-friendly error
-    const enhancedError = new Error(errorMessage);
-    (enhancedError as any).originalError = error;
-    
-    return Promise.reject(enhancedError);
+    return Promise.reject(new ApiError(errorMessage, { status, data, originalError: error }));
   }
 );
 

@@ -40,9 +40,9 @@ func (r *TVShowRepository) WithTx(tx *sql.Tx) *TVShowRepository {
 func (r *TVShowRepository) Create(show *models.TVShow) error {
 	now := timeutil.Now()
 	result, err := r.db.Exec(`
-		INSERT INTO tv_shows (tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, show.TMDBID, show.Name, show.TotalSeasons, show.Status, show.OriginCountry, show.ResourceTime, show.IsArchived, now, now)
+		INSERT INTO tv_shows (tmdb_id, name, total_seasons, status, origin_country, resource_time, resource_time_is_manual, is_archived, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, show.TMDBID, show.Name, show.TotalSeasons, show.Status, show.OriginCountry, show.ResourceTime, show.ResourceTimeIsManual, show.IsArchived, now, now)
 	if err != nil {
 		return err
 	}
@@ -60,11 +60,11 @@ func (r *TVShowRepository) Create(show *models.TVShow) error {
 func (r *TVShowRepository) GetByTMDBID(tmdbID int) (*models.TVShow, error) {
 	show := &models.TVShow{}
 	err := r.db.QueryRow(`
-		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at
+		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, resource_time_is_manual, is_archived, created_at, updated_at
 		FROM tv_shows WHERE tmdb_id = ?
 	`, tmdbID).Scan(
 		&show.ID, &show.TMDBID, &show.Name, &show.TotalSeasons, &show.Status,
-		&show.OriginCountry, &show.ResourceTime, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
+		&show.OriginCountry, &show.ResourceTime, &show.ResourceTimeIsManual, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -79,11 +79,11 @@ func (r *TVShowRepository) GetByTMDBID(tmdbID int) (*models.TVShow, error) {
 func (r *TVShowRepository) GetByID(id int64) (*models.TVShow, error) {
 	show := &models.TVShow{}
 	err := r.db.QueryRow(`
-		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at
+		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, resource_time_is_manual, is_archived, created_at, updated_at
 		FROM tv_shows WHERE id = ?
 	`, id).Scan(
 		&show.ID, &show.TMDBID, &show.Name, &show.TotalSeasons, &show.Status,
-		&show.OriginCountry, &show.ResourceTime, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
+		&show.OriginCountry, &show.ResourceTime, &show.ResourceTimeIsManual, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -97,7 +97,7 @@ func (r *TVShowRepository) GetByID(id int64) (*models.TVShow, error) {
 // GetAllActive retrieves all non-archived TVShows
 func (r *TVShowRepository) GetAllActive() ([]models.TVShow, error) {
 	rows, err := r.db.Query(`
-		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at
+		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, resource_time_is_manual, is_archived, created_at, updated_at
 		FROM tv_shows WHERE is_archived = FALSE
 	`)
 	if err != nil {
@@ -110,7 +110,7 @@ func (r *TVShowRepository) GetAllActive() ([]models.TVShow, error) {
 		var show models.TVShow
 		err := rows.Scan(
 			&show.ID, &show.TMDBID, &show.Name, &show.TotalSeasons, &show.Status,
-			&show.OriginCountry, &show.ResourceTime, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
+			&show.OriginCountry, &show.ResourceTime, &show.ResourceTimeIsManual, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -123,7 +123,7 @@ func (r *TVShowRepository) GetAllActive() ([]models.TVShow, error) {
 // GetAll retrieves all TVShows
 func (r *TVShowRepository) GetAll() ([]models.TVShow, error) {
 	rows, err := r.db.Query(`
-		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, is_archived, created_at, updated_at
+		SELECT id, tmdb_id, name, total_seasons, status, origin_country, resource_time, resource_time_is_manual, is_archived, created_at, updated_at
 		FROM tv_shows
 	`)
 	if err != nil {
@@ -136,7 +136,7 @@ func (r *TVShowRepository) GetAll() ([]models.TVShow, error) {
 		var show models.TVShow
 		err := rows.Scan(
 			&show.ID, &show.TMDBID, &show.Name, &show.TotalSeasons, &show.Status,
-			&show.OriginCountry, &show.ResourceTime, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
+			&show.OriginCountry, &show.ResourceTime, &show.ResourceTimeIsManual, &show.IsArchived, &show.CreatedAt, &show.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -151,9 +151,9 @@ func (r *TVShowRepository) Update(show *models.TVShow) error {
 	now := timeutil.Now()
 	_, err := r.db.Exec(`
 		UPDATE tv_shows 
-		SET name = ?, total_seasons = ?, status = ?, origin_country = ?, resource_time = ?, is_archived = ?, updated_at = ?
+		SET name = ?, total_seasons = ?, status = ?, origin_country = ?, resource_time = ?, resource_time_is_manual = ?, is_archived = ?, updated_at = ?
 		WHERE id = ?
-	`, show.Name, show.TotalSeasons, show.Status, show.OriginCountry, show.ResourceTime, show.IsArchived, now, show.ID)
+	`, show.Name, show.TotalSeasons, show.Status, show.OriginCountry, show.ResourceTime, show.ResourceTimeIsManual, show.IsArchived, now, show.ID)
 	if err != nil {
 		return err
 	}

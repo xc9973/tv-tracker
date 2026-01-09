@@ -12,6 +12,7 @@ import (
 // SubscriptionManager manages TV show subscriptions
 type SubscriptionManager struct {
 	tmdbClient  *tmdb.Client
+	cacheSvc    *TMDBCacheService
 	showRepo    *repository.TVShowRepository
 	episodeRepo *repository.EpisodeRepository
 }
@@ -19,11 +20,13 @@ type SubscriptionManager struct {
 // NewSubscriptionManager creates a new SubscriptionManager
 func NewSubscriptionManager(
 	tmdbClient *tmdb.Client,
+	cacheSvc *TMDBCacheService,
 	showRepo *repository.TVShowRepository,
 	episodeRepo *repository.EpisodeRepository,
 ) *SubscriptionManager {
 	return &SubscriptionManager{
 		tmdbClient:  tmdbClient,
+		cacheSvc:    cacheSvc,
 		showRepo:    showRepo,
 		episodeRepo: episodeRepo,
 	}
@@ -41,10 +44,10 @@ func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, bool, error
 		return existing, true, nil // Already subscribed, return existing with flag
 	}
 
-	// Fetch details from TMDB
-	details, err := s.tmdbClient.GetTVDetails(tmdbID)
+	// Fetch details from cache or TMDB (manual refresh only when cache is empty)
+	details, _, err := s.cacheSvc.GetOrRefresh(tmdbID)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to fetch TV details from TMDB: %w", err)
+		return nil, false, fmt.Errorf("failed to fetch TV details: %w", err)
 	}
 
 	// Determine origin country
@@ -55,20 +58,21 @@ func (s *SubscriptionManager) Subscribe(tmdbID int) (*models.TVShow, bool, error
 
 	// Create TVShow record
 	show := &models.TVShow{
-		TMDBID:        details.ID,
-		Name:          details.Name,
-		TotalSeasons:  details.NumberOfSeasons,
-		Status:        details.Status,
-		OriginCountry: originCountry,
-		ResourceTime:  InferResourceTime(originCountry),
-		IsArchived:    false,
+		TMDBID:               details.ID,
+		Name:                 details.Name,
+		TotalSeasons:         details.NumberOfSeasons,
+		Status:               details.Status,
+		OriginCountry:        originCountry,
+		ResourceTime:         InferResourceTime(originCountry),
+		ResourceTimeIsManual: false,
+		IsArchived:           false,
 	}
 
 	if err := s.showRepo.Create(show); err != nil {
 		return nil, false, fmt.Errorf("failed to create subscription: %w", err)
 	}
 
-	// Sync latest season episodes
+	// Sync latest season episodes (manual refresh only when cache is empty)
 	if details.NumberOfSeasons > 0 {
 		if err := s.syncSeasonEpisodes(tmdbID, details.NumberOfSeasons); err != nil {
 			// Log error but don't fail the subscription

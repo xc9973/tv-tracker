@@ -69,8 +69,8 @@ func TestEpisodeIDFormat(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(0, 99),  // season (typical range)
-		gen.IntRange(0, 99),  // episode (typical range)
+		gen.IntRange(0, 99), // season (typical range)
+		gen.IntRange(0, 99), // episode (typical range)
 	))
 
 	// Test specific edge cases
@@ -96,13 +96,12 @@ func TestEpisodeIDFormat(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(0, 9),  // single digit season
-		gen.IntRange(0, 9),  // single digit episode
+		gen.IntRange(0, 9), // single digit season
+		gen.IntRange(0, 9), // single digit episode
 	))
 
 	properties.TestingRun(t)
 }
-
 
 // Feature: tv-tracker, Property 5: Sync Processes Only Active Shows
 // Validates: Requirements 3.1, 5.4, 6.3
@@ -167,8 +166,19 @@ func TestSyncProcessesOnlyActiveShows(t *testing.T) {
 			showRepo := repository.NewTVShowRepository(db)
 			episodeRepo := repository.NewEpisodeRepository(db)
 			taskRepo := repository.NewTaskRepository(db)
+			cacheRepo := repository.NewTMDBCacheRepository(db)
 			tmdbClient := tmdb.NewClient("test-api-key")
 			tmdbClient.SetBaseURL(server.URL)
+			cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+
+			// Prime cache for active shows because SyncAll consumes cached data only.
+			for i := 0; i < activeCount; i++ {
+				tmdbID := 1000 + i
+				if _, err := cacheSvc.Refresh(tmdbID); err != nil {
+					t.Logf("Failed to prime cache for active show %d: %v", tmdbID, err)
+					return false
+				}
+			}
 
 			// Create active shows (is_archived = false)
 			activeTMDBIDs := make([]int, 0, activeCount)
@@ -211,7 +221,7 @@ func TestSyncProcessesOnlyActiveShows(t *testing.T) {
 			}
 
 			// Create TaskGenerator and run sync
-			taskGen := service.NewTaskGenerator(tmdbClient, showRepo, episodeRepo, taskRepo)
+			taskGen := service.NewTaskGenerator(tmdbClient, cacheSvc, showRepo, episodeRepo, taskRepo)
 			_, err = taskGen.SyncAll()
 			if err != nil {
 				t.Logf("SyncAll failed: %v", err)
@@ -236,13 +246,12 @@ func TestSyncProcessesOnlyActiveShows(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(0, 5),  // activeCount
-		gen.IntRange(0, 5),  // archivedCount
+		gen.IntRange(0, 5), // activeCount
+		gen.IntRange(0, 5), // archivedCount
 	))
 
 	properties.TestingRun(t)
 }
-
 
 // Feature: tv-tracker, Property 10: UPDATE_Task Idempotence
 // Validates: Requirements 4.3
@@ -331,8 +340,15 @@ func TestUpdateTaskIdempotence(t *testing.T) {
 			showRepo := repository.NewTVShowRepository(db)
 			episodeRepo := repository.NewEpisodeRepository(db)
 			taskRepo := repository.NewTaskRepository(db)
+			cacheRepo := repository.NewTMDBCacheRepository(db)
 			tmdbClient := tmdb.NewClient("test-api-key")
 			tmdbClient.SetBaseURL(server.URL)
+			cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+
+			if _, err := cacheSvc.Refresh(tmdbID); err != nil {
+				t.Logf("Failed to prime cache: %v", err)
+				return false
+			}
 
 			// Create a show
 			show := &models.TVShow{
@@ -350,7 +366,7 @@ func TestUpdateTaskIdempotence(t *testing.T) {
 			}
 
 			// Create TaskGenerator
-			taskGen := service.NewTaskGenerator(tmdbClient, showRepo, episodeRepo, taskRepo)
+			taskGen := service.NewTaskGenerator(tmdbClient, cacheSvc, showRepo, episodeRepo, taskRepo)
 
 			// Run sync multiple times
 			for i := 0; i < syncCount; i++ {
@@ -385,16 +401,15 @@ func TestUpdateTaskIdempotence(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(1, 1000),                                               // tmdbID
+		gen.IntRange(1, 1000), // tmdbID
 		gen.AnyString().SuchThat(func(s string) bool { return len(s) > 0 }), // showName
-		gen.IntRange(1, 10),                                                 // season
-		gen.IntRange(1, 24),                                                 // episode
-		gen.IntRange(1, 3),                                                  // syncCount
+		gen.IntRange(1, 10), // season
+		gen.IntRange(1, 24), // episode
+		gen.IntRange(1, 3),  // syncCount
 	))
 
 	properties.TestingRun(t)
 }
-
 
 // Feature: tv-tracker, Property 12: ORGANIZE_Task Idempotence
 // Validates: Requirements 5.3
@@ -466,8 +481,15 @@ func TestOrganizeTaskIdempotence(t *testing.T) {
 			showRepo := repository.NewTVShowRepository(db)
 			episodeRepo := repository.NewEpisodeRepository(db)
 			taskRepo := repository.NewTaskRepository(db)
+			cacheRepo := repository.NewTMDBCacheRepository(db)
 			tmdbClient := tmdb.NewClient("test-api-key")
 			tmdbClient.SetBaseURL(server.URL)
+			cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+
+			if _, err := cacheSvc.Refresh(tmdbID); err != nil {
+				t.Logf("Failed to prime cache: %v", err)
+				return false
+			}
 
 			// Create a show (initially with "Returning Series" status, will be updated by sync)
 			show := &models.TVShow{
@@ -485,7 +507,7 @@ func TestOrganizeTaskIdempotence(t *testing.T) {
 			}
 
 			// Create TaskGenerator
-			taskGen := service.NewTaskGenerator(tmdbClient, showRepo, episodeRepo, taskRepo)
+			taskGen := service.NewTaskGenerator(tmdbClient, cacheSvc, showRepo, episodeRepo, taskRepo)
 
 			// Run sync multiple times
 			for i := 0; i < syncCount; i++ {
@@ -525,7 +547,7 @@ func TestOrganizeTaskIdempotence(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(1, 1000),                                               // tmdbID
+		gen.IntRange(1, 1000), // tmdbID
 		gen.AnyString().SuchThat(func(s string) bool { return len(s) > 0 }), // showName
 		gen.OneConstOf("Ended", "Canceled"),                                 // status (only ended/canceled shows)
 		gen.IntRange(1, 3),                                                  // syncCount

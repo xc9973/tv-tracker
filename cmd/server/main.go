@@ -71,15 +71,18 @@ func main() {
 	showRepo := repository.NewTVShowRepository(db)
 	episodeRepo := repository.NewEpisodeRepository(db)
 	taskRepo := repository.NewTaskRepository(db)
+	cacheRepo := repository.NewTMDBCacheRepository(db)
 
 	// Initialize TMDB client
 	tmdbClient := tmdb.NewClient(config.TMDBAPIKey)
 
 	// Initialize services
-	subManager := service.NewSubscriptionManager(tmdbClient, showRepo, episodeRepo)
-	taskGenerator := service.NewTaskGenerator(tmdbClient, showRepo, episodeRepo, taskRepo)
+	cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+	subManager := service.NewSubscriptionManager(tmdbClient, cacheSvc, showRepo, episodeRepo)
+	taskGenerator := service.NewTaskGenerator(tmdbClient, cacheSvc, showRepo, episodeRepo, taskRepo)
 	taskBoard := service.NewTaskBoardService(taskRepo, showRepo)
 	backupSvc := service.NewBackupService(config.DBPath, config.BackupDir)
+	showSync := service.NewShowSyncService(cacheSvc, taskGenerator, showRepo, episodeRepo)
 
 	disableBot, _ := strconv.ParseBool(getEnv("DISABLE_BOT", "false"))
 
@@ -158,6 +161,7 @@ func main() {
 			episodeRepo,
 			showRepo,
 			backupSvc,
+			showSync,
 			config.WEBAPIToken,
 		)
 		httpHandler.RegisterRoutes(router)

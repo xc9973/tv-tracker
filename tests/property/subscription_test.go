@@ -2,9 +2,11 @@ package property
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/leanovate/gopter"
@@ -34,10 +36,13 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 				return true
 			}
 
+			expectedPath := fmt.Sprintf("/tv/%d", tmdbID)
+			observedPaths := make([]string, 0, 2)
 			// Create mock TMDB server
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// Handle TV details request
-				if r.URL.Path == "/tv/"+string(rune(tmdbID)) || true {
+				observedPaths = append(observedPaths, r.URL.Path)
+
+				if r.URL.Path == expectedPath {
 					response := map[string]interface{}{
 						"id":                tmdbID,
 						"name":              name,
@@ -50,6 +55,17 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 					json.NewEncoder(w).Encode(response)
 					return
 				}
+
+				seasonPrefix := expectedPath + "/season/"
+				if strings.HasPrefix(r.URL.Path, seasonPrefix) {
+					w.WriteHeader(http.StatusOK)
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"episodes": []map[string]interface{}{},
+					})
+					return
+				}
+
+				w.WriteHeader(http.StatusNotFound)
 			}))
 			defer server.Close()
 
@@ -75,7 +91,9 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 			tmdbClient := tmdb.NewClient("test-api-key")
 			tmdbClient.SetBaseURL(server.URL)
 
-			subManager := service.NewSubscriptionManager(tmdbClient, showRepo, episodeRepo)
+			cacheRepo := repository.NewTMDBCacheRepository(db)
+			cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+			subManager := service.NewSubscriptionManager(tmdbClient, cacheSvc, showRepo, episodeRepo)
 
 			// Subscribe to the show
 			show, _, err := subManager.Subscribe(tmdbID)
@@ -86,6 +104,18 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 
 			if show == nil {
 				t.Log("Subscribed show is nil")
+				return false
+			}
+
+			sawDetails := false
+			for _, p := range observedPaths {
+				if p == expectedPath {
+					sawDetails = true
+					break
+				}
+			}
+			if !sawDetails {
+				t.Logf("TMDB details endpoint was not called: expected %s, got %v", expectedPath, observedPaths)
 				return false
 			}
 
@@ -107,11 +137,11 @@ func TestSubscriptionDataRoundTrip(t *testing.T) {
 				retrieved.Status == status &&
 				retrieved.OriginCountry == originCountry
 		},
-		gen.IntRange(1, 1000000),                                            // tmdbID
+		gen.IntRange(1, 1000000), // tmdbID
 		gen.AnyString().SuchThat(func(s string) bool { return len(s) > 0 }), // name
 		gen.OneConstOf("Returning Series", "Ended", "Canceled"),             // status
-		gen.OneConstOf("US", "UK", "CA", "CN", "TW", "JP", "KR"),             // originCountry
-		gen.IntRange(1, 20),                                                 // numSeasons
+		gen.OneConstOf("US", "UK", "CA", "CN", "TW", "JP", "KR"),            // originCountry
+		gen.IntRange(1, 20), // numSeasons
 	))
 
 	properties.TestingRun(t)
@@ -170,7 +200,9 @@ func TestSubscriptionIdempotence(t *testing.T) {
 			tmdbClient := tmdb.NewClient("test-api-key")
 			tmdbClient.SetBaseURL(server.URL)
 
-			subManager := service.NewSubscriptionManager(tmdbClient, showRepo, episodeRepo)
+			cacheRepo := repository.NewTMDBCacheRepository(db)
+			cacheSvc := service.NewTMDBCacheService(tmdbClient, cacheRepo)
+			subManager := service.NewSubscriptionManager(tmdbClient, cacheSvc, showRepo, episodeRepo)
 
 			// Subscribe multiple times
 			var firstShow *models.TVShow
@@ -221,9 +253,9 @@ func TestSubscriptionIdempotence(t *testing.T) {
 
 			return true
 		},
-		gen.IntRange(1, 1000000),                                            // tmdbID
+		gen.IntRange(1, 1000000), // tmdbID
 		gen.AnyString().SuchThat(func(s string) bool { return len(s) > 0 }), // name
-		gen.IntRange(1, 5),                                                  // subscribeCount
+		gen.IntRange(1, 5), // subscribeCount
 	))
 
 	properties.TestingRun(t)
