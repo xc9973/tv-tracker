@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -11,12 +12,19 @@ type SQLiteDB struct {
 	db *sql.DB
 }
 
-// NewSQLiteDB creates a new SQLite database connection
+// NewSQLiteDB creates a new SQLite database connection with connection pool settings
 func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
 	}
+
+	// Configure connection pool for optimal performance
+	// SQLite benefits from limited connections due to write locking
+	db.SetMaxOpenConns(25)                 // Maximum number of open connections
+	db.SetMaxIdleConns(5)                  // Maximum number of idle connections
+	db.SetConnMaxLifetime(5 * time.Minute) // Maximum lifetime of a connection
+
 	return &SQLiteDB{db: db}, nil
 }
 

@@ -70,8 +70,19 @@ func (s *TaskBoardService) CompleteTask(taskID int64) error {
 		return fmt.Errorf("task not found: %d", taskID)
 	}
 
+	tx, err := s.taskRepo.BeginTx()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	taskRepo := s.taskRepo.WithTx(tx)
+	showRepo := s.showRepo.WithTx(tx)
+
 	// Mark the task as completed
-	if err := s.taskRepo.Complete(taskID); err != nil {
+	if err := taskRepo.Complete(taskID); err != nil {
 		return fmt.Errorf("failed to complete task: %w", err)
 	}
 
@@ -79,11 +90,14 @@ func (s *TaskBoardService) CompleteTask(taskID int64) error {
 	// Requirement 6.2: WHEN a user marks an ORGANIZE_Task as complete,
 	// THE Task_Board SHALL set is_completed to True AND set the associated TVShow.is_archived to True
 	if task.TaskType == models.TaskTypeOrganize {
-		if err := s.showRepo.Archive(task.TVShowID); err != nil {
+		if err := showRepo.Archive(task.TVShowID); err != nil {
 			return fmt.Errorf("failed to archive show: %w", err)
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 	return nil
 }
 
@@ -98,6 +112,16 @@ func (s *TaskBoardService) PostponeTask(taskID int64) error {
 		return fmt.Errorf("task not found: %d", taskID)
 	}
 
+	tx, err := s.taskRepo.BeginTx()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	taskRepo := s.taskRepo.WithTx(tx)
+
 	// Calculate tomorrow's date based on current time
 	tomorrow := timeutil.Now().AddDate(0, 0, 1).Format("2006-01-02 15:04:05")
 
@@ -109,14 +133,17 @@ func (s *TaskBoardService) PostponeTask(taskID int64) error {
 		IsCompleted: false,
 	}
 
-	if err := s.taskRepo.CreateWithDate(newTask, tomorrow); err != nil {
+	if err := taskRepo.CreateWithDate(newTask, tomorrow); err != nil {
 		return fmt.Errorf("failed to create postponed task: %w", err)
 	}
 
 	// Delete the original task
-	if err := s.taskRepo.Delete(taskID); err != nil {
+	if err := taskRepo.Delete(taskID); err != nil {
 		return fmt.Errorf("failed to delete original task: %w", err)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 	return nil
 }

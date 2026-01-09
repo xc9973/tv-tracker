@@ -4,6 +4,8 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,7 @@ type HTTPHandler struct {
 	showRepo    *repository.TVShowRepository
 	backupSvc   *service.BackupService
 	apiToken    string
+	staticDir   string
 }
 
 // NewHTTPHandler creates a new HTTPHandler
@@ -36,6 +39,12 @@ func NewHTTPHandler(
 	backupSvc *service.BackupService,
 	apiToken string,
 ) *HTTPHandler {
+	// Get static directory from environment or use default
+	staticDir := os.Getenv("STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "./web/simple"
+	}
+
 	return &HTTPHandler{
 		tmdbClient:  tmdbClient,
 		subMgr:      subMgr,
@@ -44,6 +53,7 @@ func NewHTTPHandler(
 		showRepo:    showRepo,
 		backupSvc:   backupSvc,
 		apiToken:    strings.TrimSpace(apiToken),
+		staticDir:   staticDir,
 	}
 }
 
@@ -51,7 +61,10 @@ func NewHTTPHandler(
 func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 	// Serve simple web UI
 	r.GET("/", func(c *gin.Context) {
-		c.File("./web/simple/index.html")
+		indexPath := filepath.Join(h.staticDir, "index.html")
+		// Clean path to prevent directory traversal
+		indexPath = filepath.Clean(indexPath)
+		c.File(indexPath)
 	})
 
 	api := r.Group("/api")
@@ -111,18 +124,10 @@ func (h *HTTPHandler) GetDashboard(c *gin.Context) {
 
 // GetTodayEpisodes returns today's episodes
 func (h *HTTPHandler) GetTodayEpisodes(c *gin.Context) {
-	today := h.getParam(c, "date", "")
+	today := strings.TrimSpace(c.Query("date"))
 	if today == "" {
-		today = "2006-01-02" // will be set below
-	}
-
-	// Get current date if not provided
-	if today == "2006-01-02" {
-		today = c.Query("date")
-		if today == "" {
-			now := timeutil.Now()
-			today = now.Format("2006-01-02")
-		}
+		now := timeutil.Now()
+		today = now.Format("2006-01-02")
 	}
 
 	episodes, err := h.episodeRepo.GetTodayEpisodesWithShowInfo(today)

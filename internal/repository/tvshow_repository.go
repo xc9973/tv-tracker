@@ -2,19 +2,38 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 
 	"tv-tracker/internal/models"
 	"tv-tracker/internal/timeutil"
 )
 
+type tvShowDBTX interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 // TVShowRepository handles TVShow database operations
 type TVShowRepository struct {
-	db *sql.DB
+	db   tvShowDBTX
+	base *sql.DB
 }
 
 // NewTVShowRepository creates a new TVShowRepository
 func NewTVShowRepository(sqliteDB *SQLiteDB) *TVShowRepository {
-	return &TVShowRepository{db: sqliteDB.db}
+	return &TVShowRepository{db: sqliteDB.db, base: sqliteDB.db}
+}
+
+func (r *TVShowRepository) BeginTx() (*sql.Tx, error) {
+	if r.base == nil {
+		return nil, errors.New("tvshow repository: transactions not supported on tx-scoped repo")
+	}
+	return r.base.Begin()
+}
+
+func (r *TVShowRepository) WithTx(tx *sql.Tx) *TVShowRepository {
+	return &TVShowRepository{db: tx}
 }
 
 // Create inserts a new TVShow into the database

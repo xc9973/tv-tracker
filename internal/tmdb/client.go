@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	defaultBaseURL    = "https://api.themoviedb.org/3"
-	defaultTimeout    = 10 * time.Second
-	requestInterval   = 100 * time.Millisecond // 请求间隔，避免触发限流
+	defaultBaseURL  = "https://api.themoviedb.org/3"
+	defaultTimeout  = 10 * time.Second
+	requestInterval = 100 * time.Millisecond // 请求间隔，避免触发限流
 )
 
 // Client handles all interactions with the TMDB API
@@ -57,7 +57,6 @@ type TVDetails struct {
 type SeasonDetail struct {
 	Episodes []EpisodeInfo `json:"episodes"`
 }
-
 
 // searchResponse wraps the TMDB search API response
 type searchResponse struct {
@@ -108,10 +107,16 @@ func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/search/tv?api_key=%s&query=%s&language=zh-CN",
-		c.baseURL, c.apiKey, url.QueryEscape(query))
+	endpoint := fmt.Sprintf("%s/search/tv?query=%s&language=zh-CN",
+		c.baseURL, url.QueryEscape(query))
 
-	resp, err := c.httpClient.Get(endpoint)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search TV shows: %w", err)
 	}
@@ -129,7 +134,6 @@ func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 	return result.Results, nil
 }
 
-
 // GetTVDetails fetches detailed information for a TV show
 // Calls TMDB /tv/{id} API with Chinese language
 func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
@@ -139,9 +143,15 @@ func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/tv/%d?api_key=%s&language=zh-CN", c.baseURL, tmdbID, c.apiKey)
+	endpoint := fmt.Sprintf("%s/tv/%d?language=zh-CN", c.baseURL, tmdbID)
 
-	resp, err := c.httpClient.Get(endpoint)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get TV details: %w", err)
 	}
@@ -171,10 +181,16 @@ func (c *Client) GetSeasonEpisodes(tmdbID, seasonNumber int) ([]EpisodeInfo, err
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?api_key=%s&language=zh-CN",
-		c.baseURL, tmdbID, seasonNumber, c.apiKey)
+	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?language=zh-CN",
+		c.baseURL, tmdbID, seasonNumber)
 
-	resp, err := c.httpClient.Get(endpoint)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get season episodes: %w", err)
 	}

@@ -10,14 +10,26 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags '-linkmode external -extldflags "-static"' -o tv-tracker ./cmd/server
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata sqlite wget
+
+# Create non-root user
+RUN adduser -D -u 1000 appuser
+
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
+
+# Copy binary and static files
 COPY --from=builder /app/tv-tracker ./
 COPY web/simple /app/web/simple
-RUN mkdir -p /app/data/backups
+
+# Create data directory and set permissions
+RUN mkdir -p /app/data/backups && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 18080
 CMD ["./tv-tracker"]

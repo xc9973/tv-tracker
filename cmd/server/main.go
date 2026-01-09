@@ -221,7 +221,10 @@ func loadConfig() *Config {
 
 	// Validate required configuration
 	if config.TMDBAPIKey == "" {
-		log.Println("Warning: TMDB_API_KEY not set. TMDB API calls will fail.")
+		log.Fatal("Error: TMDB_API_KEY is required but not set. Please set the TMDB_API_KEY environment variable.")
+	}
+	if config.WEBEnabled && config.WEBAPIToken == "" {
+		log.Fatal("Error: WEB_API_TOKEN is required when WEB_ENABLED=true. Please set the WEB_API_TOKEN environment variable.")
 	}
 
 	return config

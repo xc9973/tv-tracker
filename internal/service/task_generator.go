@@ -102,7 +102,6 @@ func (t *TaskGenerator) SyncAll() (*SyncResult, error) {
 	return result, nil
 }
 
-
 // syncSeasonEpisodes syncs episodes for a specific season from TMDB
 func (t *TaskGenerator) syncSeasonEpisodes(tmdbID, seasonNumber int) error {
 	episodes, err := t.tmdbClient.GetSeasonEpisodes(tmdbID, seasonNumber)
@@ -178,17 +177,18 @@ func (t *TaskGenerator) createUpdateTaskIfNeeded(show *models.TVShow, episode *t
 		return nil, nil
 	}
 
-	// Parse air date
-	airDate, err := time.Parse("2006-01-02", episode.AirDate)
+	// Parse air date in local timezone to match timeutil.Now().
+	airDate, err := time.ParseInLocation("2006-01-02", episode.AirDate, timeutil.Now().Location())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse air date %s: %w", episode.AirDate, err)
 	}
 
-	// Check if air date is today or in the past
-	today := timeutil.Now().Truncate(24 * time.Hour)
-	airDateTruncated := airDate.Truncate(24 * time.Hour)
+	// Check if air date is today or in the past (local date comparison).
+	now := timeutil.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	airDateDay := time.Date(airDate.Year(), airDate.Month(), airDate.Day(), 0, 0, 0, 0, airDate.Location())
 
-	if airDateTruncated.After(today) {
+	if airDateDay.After(today) {
 		// Episode hasn't aired yet
 		return nil, nil
 	}
@@ -206,8 +206,8 @@ func (t *TaskGenerator) createUpdateTaskIfNeeded(show *models.TVShow, episode *t
 		return nil, nil
 	}
 
-	// Create UPDATE_Task
-	description := fmt.Sprintf("新剧集更新: %s - %s", episodeID, episode.Name)
+	// Create UPDATE_Task. Use stable prefix "SxxExx|" for exact matching.
+	description := fmt.Sprintf("%s|新剧集更新: %s - %s", episodeID, episodeID, episode.Name)
 	task := &models.Task{
 		TVShowID:    show.ID,
 		TaskType:    models.TaskTypeUpdate,
