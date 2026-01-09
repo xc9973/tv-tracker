@@ -362,6 +362,25 @@
         </div>
     </div>
 
+    <!-- 编辑弹窗 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">编辑剧集信息</div>
+            <div class="form-group">
+                <label>剧集名称</label>
+                <input type="text" id="editShowName" readonly>
+            </div>
+            <div class="form-group">
+                <label>资源时间</label>
+                <input type="text" id="editResourceTime" placeholder="例如: 08:00 或 周五20:00">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="saveEdit()">保存</button>
+                <button class="btn" style="background:#6c757d" onclick="closeEditModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = '/api';
         let API_TOKEN = localStorage.getItem('api_token') || '';
@@ -393,6 +412,7 @@
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
             
+            if (tabName === 'calendar') loadCalendar();
             if (tabName === 'today') loadToday();
             if (tabName === 'library') loadLibrary();
         }
@@ -482,6 +502,54 @@
                 }
             } catch (error) {
                 alert('订阅失败: ' + error.message);
+            }
+        }
+        
+        // 加载追更日历
+        async function loadCalendar() {
+            const calendar = document.getElementById('calendarWeek');
+            calendar.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/week`, {
+                    headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+                });
+                const data = await response.json();
+                
+                const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+                const today = new Date().toISOString().split('T')[0];
+                
+                // 按日期排序
+                const sortedDates = Object.keys(data.days).sort();
+                
+                calendar.innerHTML = sortedDates.map((date, index) => {
+                    const episodes = data.days[date];
+                    const isToday = date === today;
+                    const dayName = weekDays[index];
+                    const dateDisplay = date.substring(5); // MM-DD
+                    
+                    const episodesHTML = episodes.length > 0 ? episodes.map(item => `
+                        <div class="calendar-item" onclick="showEditModal(${item.show_id}, '${item.show_name.replace(/'/g, "\\'")}', ${item.episode.season}, ${item.episode.episode}, '${item.resource_time || ''}')">
+                            <div class="calendar-item-title">${item.show_name}</div>
+                            <div class="calendar-item-info">
+                                S${item.episode.season}E${item.episode.episode}
+                                ${item.resource_time ? `<br>⏰ ${item.resource_time}` : ''}
+                            </div>
+                        </div>
+                    `).join('') : '<div style="text-align:center;color:#999;padding:20px;">无更新</div>';
+                    
+                    return `
+                        <div class="day-column">
+                            <div class="day-header ${isToday ? 'today' : ''}">
+                                ${dayName}<br>
+                                <span style="font-size:12px">${dateDisplay}</span>
+                            </div>
+                            ${episodesHTML}
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                calendar.innerHTML = '<div class="error">加载失败: ' + error.message + '</div>';
             }
         }
         
@@ -634,6 +702,61 @@
                 alert('操作失败: ' + error.message);
             }
         }
+        
+        // 编辑弹窗功能
+        let currentEditShowId = null;
+        
+        function showEditModal(showId, showName, season, episode, resourceTime) {
+            currentEditShowId = showId;
+            document.getElementById('editShowName').value = showName;
+            document.getElementById('editResourceTime').value = resourceTime;
+            document.getElementById('editModal').classList.add('show');
+        }
+        
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('show');
+            currentEditShowId = null;
+        }
+        
+        async function saveEdit() {
+            if (!currentEditShowId) return;
+            
+            const resourceTime = document.getElementById('editResourceTime').value.trim();
+            
+            if (!resourceTime) {
+                alert('请输入资源时间');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/shows/${currentEditShowId}/resource-time`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${API_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ resource_time: resourceTime })
+                });
+                
+                if (response.ok) {
+                    alert('保存成功!');
+                    closeEditModal();
+                    loadCalendar(); // 刷新日历
+                } else {
+                    const text = await response.text();
+                    alert('保存失败: ' + text);
+                }
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+        
+        // 点击弹窗外部关闭
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
     </script>
 </body>
 </html>

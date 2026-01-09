@@ -66,6 +66,9 @@ func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 	// Today's episodes
 	api.GET("/today", h.GetTodayEpisodes)
 
+	// Week calendar
+	api.GET("/week", h.GetWeekEpisodes)
+
 	// Search
 	api.GET("/search", h.SearchTV)
 
@@ -129,6 +132,43 @@ func (h *HTTPHandler) GetTodayEpisodes(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"episodes": episodes})
+}
+
+// GetWeekEpisodes returns this week's episodes grouped by date
+func (h *HTTPHandler) GetWeekEpisodes(c *gin.Context) {
+	now := timeutil.Now()
+
+	// Calculate start of week (Monday)
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday = 7
+	}
+	startOfWeek := now.AddDate(0, 0, -(weekday - 1))
+
+	// Build week data
+	weekData := make(map[string][]repository.TodayEpisodeInfo)
+
+	for i := 0; i < 7; i++ {
+		date := startOfWeek.AddDate(0, 0, i)
+		dateStr := date.Format("2006-01-02")
+
+		episodes, err := h.episodeRepo.GetTodayEpisodesWithShowInfo(dateStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if episodes == nil {
+			episodes = []repository.TodayEpisodeInfo{}
+		}
+
+		weekData[dateStr] = episodes
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"days":       weekData,
+		"start_date": startOfWeek.Format("2006-01-02"),
+	})
 }
 
 // SearchTV searches for TV shows
