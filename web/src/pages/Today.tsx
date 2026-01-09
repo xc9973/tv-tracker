@@ -36,7 +36,30 @@ export default function Today() {
     return days[new Date().getDay()];
   };
 
-  if (loading) return <div className="today minimal">加载中...</div>;
+  // 骨架屏加载状态
+  if (loading) {
+    return (
+      <div className="today minimal">
+        <div className="header-row">
+          <div className="title">📺 今日更新</div>
+          <div className="meta skeleton-text" style={{width: '200px', height: '20px'}}></div>
+          <button type="button" className="refresh" disabled>刷新</button>
+        </div>
+        <ul className="simple-list">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <li key={i} className="simple-item skeleton-item">
+              <span className="skeleton-text" style={{width: '120px'}}></span>
+              <span className="sep">·</span>
+              <span className="skeleton-text" style={{width: '60px'}}></span>
+              <span className="sep">·</span>
+              <span className="skeleton-text" style={{width: '200px'}}></span>
+              <span className="skeleton-text" style={{width: '60px'}}></span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="today minimal">

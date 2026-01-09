@@ -156,3 +156,32 @@
     flex: 1;
   }
 }
+
+/* 骨架屏动画 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton-text {
+  display: inline-block;
+  height: 16px;
+  background: linear-gradient(90deg, #2a2a3e 25%, #3a3a4e 50%, #2a2a3e 75%);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.skeleton-item {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.skeleton-item .task-content span:not(.skeleton-text) {
+  margin-right: 12px;
+}

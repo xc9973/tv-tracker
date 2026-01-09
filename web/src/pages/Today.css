@@ -29,3 +29,30 @@
 @media (max-width: 600px) {
   .time { display:block; width:100%; margin-top:4px; }
 }
+
+/* 骨架屏动画 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton-text {
+  display: inline-block;
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-item {
+  opacity: 0.7;
+}
+
+.skeleton-item .skeleton-text {
+  vertical-align: middle;
+}

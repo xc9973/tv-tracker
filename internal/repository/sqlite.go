@@ -74,6 +74,11 @@ func (s *SQLiteDB) InitSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_episodes_tmdb ON episodes(tmdb_id);
 	CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(is_completed);
 	CREATE INDEX IF NOT EXISTS idx_shows_archived ON tv_shows(is_archived);
+	
+	-- 复合索引优化 JOIN 查询性能
+	CREATE INDEX IF NOT EXISTS idx_episodes_air_date_tmdb ON episodes(air_date, tmdb_id);
+	CREATE INDEX IF NOT EXISTS idx_shows_tmdb_archived ON tv_shows(tmdb_id, is_archived);
+	CREATE INDEX IF NOT EXISTS idx_tasks_show_completed ON tasks(tv_show_id, is_completed);
 	`
 	_, err := s.db.Exec(schema)
 	return err

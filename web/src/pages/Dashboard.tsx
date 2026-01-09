@@ -114,8 +114,57 @@ export default function Dashboard() {
     </section>
   );
 
+  // 骨架屏加载状态
   if (loading) {
-    return <div className="dashboard loading">加载中...</div>;
+    return (
+      <div className="dashboard">
+        <div className="dashboard-header">
+          <div>
+            <h2>任务管理</h2>
+            <p className="task-summary skeleton-text" style={{width: '150px', height: '20px'}}></p>
+          </div>
+          <button className="btn" disabled>刷新</button>
+        </div>
+
+        <section className="task-section">
+          <h3>今日更新 <span className="skeleton-text" style={{width: '30px', display: 'inline-block'}}></span></h3>
+          <div className="task-list">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="task-item skeleton-item">
+                <div className="task-content">
+                  <span className="skeleton-text" style={{width: '60px'}}></span>
+                  <span className="skeleton-text" style={{width: '120px'}}></span>
+                  <span className="skeleton-text" style={{width: '200px'}}></span>
+                </div>
+                <div className="task-actions">
+                  <button className="btn btn-warning" disabled>推迟</button>
+                  <button className="btn btn-success" disabled>完成</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="task-section">
+          <h3>待整理归档 <span className="skeleton-text" style={{width: '30px', display: 'inline-block'}}></span></h3>
+          <div className="task-list">
+            {[1].map((i) => (
+              <div key={i} className="task-item skeleton-item">
+                <div className="task-content">
+                  <span className="skeleton-text" style={{width: '60px'}}></span>
+                  <span className="skeleton-text" style={{width: '120px'}}></span>
+                  <span className="skeleton-text" style={{width: '180px'}}></span>
+                </div>
+                <div className="task-actions">
+                  <button className="btn btn-warning" disabled>推迟</button>
+                  <button className="btn btn-success" disabled>完成</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
   }
 
   const totalTasks = data.update_tasks.length + data.organize_tasks.length;
