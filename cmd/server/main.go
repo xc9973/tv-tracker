@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,8 +13,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"tv-tracker/internal/handler"
+	"tv-tracker/internal/logger"
 	"tv-tracker/internal/notify"
 	"tv-tracker/internal/repository"
 	"tv-tracker/internal/service"
@@ -42,20 +43,29 @@ func main() {
 	reportMode := flag.Bool("report", false, "Send daily report and exit")
 	flag.Parse()
 
+	// Initialize logger
+	isDev := getEnv("ENV", "production") == "development"
+	if err := logger.InitLogger(isDev); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
 	// Load configuration
 	config := loadConfig()
 
 	// Initialize database
 	db, err := repository.NewSQLiteDB(config.DBPath)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer db.Close()
 
 	// Initialize database schema
 	if err := db.InitSchema(); err != nil {
-		log.Fatalf("Failed to initialize database schema: %v", err)
+		logger.Fatal("Failed to initialize database schema", zap.Error(err))
 	}
+
+	logger.Info("Database initialized", zap.String("path", config.DBPath))
 
 	// Initialize repositories
 	showRepo := repository.NewTVShowRepository(db)
@@ -76,10 +86,10 @@ func main() {
 	// Initialize Telegram Bot
 	var bot *notify.TelegramBot
 	if disableBot {
-		log.Println("DISABLE_BOT=true; Telegram bot disabled")
+		logger.Info("Telegram bot disabled", zap.Bool("disable_bot", true))
 	} else {
 		if config.TelegramBotToken == "" || config.TelegramChatID == 0 {
-			log.Fatal("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
+			logger.Fatal("Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
 		}
 
 		deps := notify.Dependencies{
@@ -99,21 +109,22 @@ func main() {
 
 		newBot, err := notify.NewTelegramBot(config.TelegramBotToken, config.TelegramChatID, channelID, deps)
 		if err != nil {
-			log.Fatalf("Failed to create Telegram bot: %v", err)
+			logger.Fatal("Failed to create Telegram bot", zap.Error(err))
 		}
 		bot = newBot
+		logger.Info("Telegram bot initialized", zap.Int64("chat_id", config.TelegramChatID))
 	}
 
 	// CLI mode: send daily report and exit
 	if *reportMode {
 		if bot == nil {
-			log.Fatal("Report mode requires Telegram bot; set DISABLE_BOT=false")
+			logger.Fatal("Report mode requires Telegram bot; set DISABLE_BOT=false")
 		}
-		log.Println("Sending daily report...")
+		logger.Info("Sending daily report...")
 		if err := bot.SendDailyReport(); err != nil {
-			log.Fatalf("Failed to send daily report: %v", err)
+			logger.Fatal("Failed to send daily report", zap.Error(err))
 		}
-		fmt.Println("Daily report sent successfully!")
+		logger.Info("Daily report sent successfully!")
 		return
 	}
 
@@ -127,15 +138,16 @@ func main() {
 	if bot != nil {
 		scheduler = service.NewScheduler(bot, backupSvc, config.ReportTime)
 		scheduler.Start()
+		logger.Info("Scheduler started", zap.String("report_time", config.ReportTime))
 	} else {
-		log.Println("Scheduler disabled because Telegram bot is disabled")
+		logger.Info("Scheduler disabled because Telegram bot is disabled")
 	}
 
 	// Optional HTTP server
 	var httpServer *http.Server
 	if config.WEBEnabled {
 		if config.WEBAPIToken == "" {
-			log.Fatal("WEB_ENABLED=true but WEB_API_TOKEN not set")
+			logger.Fatal("WEB_ENABLED=true but WEB_API_TOKEN not set")
 		}
 
 		router := gin.Default()
@@ -158,13 +170,13 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log.Printf("HTTP API listening on %s", config.WEBListenAddr)
+			logger.Info("HTTP API listening", zap.String("address", config.WEBListenAddr))
 			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Printf("HTTP server error: %v", err)
+				logger.Error("HTTP server error", zap.Error(err))
 			}
 		}()
 	} else {
-		log.Println("WEB_ENABLED=false; HTTP API disabled")
+		logger.Info("HTTP API disabled", zap.Bool("web_enabled", false))
 	}
 
 	// Telegram bot
@@ -172,14 +184,14 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log.Printf("TV Tracker bot started. Chat ID: %d", config.TelegramChatID)
+			logger.Info("TV Tracker bot started", zap.Int64("chat_id", config.TelegramChatID))
 			bot.Start()
 		}()
 	}
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	log.Println("Shutting down...")
+	logger.Info("Received shutdown signal")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer cancel()
@@ -192,12 +204,12 @@ func main() {
 	}
 	if httpServer != nil {
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("HTTP server shutdown error: %v", err)
+			logger.Error("HTTP server shutdown error", zap.Error(err))
 		}
 	}
 
 	wg.Wait()
-	log.Println("Shutdown complete")
+	logger.Info("Shutdown complete")
 }
 
 // loadConfig loads configuration from environment variables

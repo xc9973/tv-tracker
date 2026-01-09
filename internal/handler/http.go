@@ -7,8 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ulule/limiter/v3"
+	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 
 	"tv-tracker/internal/models"
 	"tv-tracker/internal/repository"
@@ -59,6 +63,14 @@ func NewHTTPHandler(
 
 // RegisterRoutes registers all HTTP routes
 func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
+	// Rate limiter: 100 requests per minute
+	rate := limiter.Rate{
+		Period: 1 * time.Minute,
+		Limit:  100,
+	}
+	store := memory.NewStore()
+	rateLimiter := mgin.NewMiddleware(limiter.New(store, rate))
+
 	// Serve simple web UI
 	r.GET("/", func(c *gin.Context) {
 		indexPath := filepath.Join(h.staticDir, "index.html")
@@ -69,6 +81,7 @@ func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 
 	api := r.Group("/api")
 	api.Use(h.authMiddleware)
+	api.Use(rateLimiter) // Apply rate limiting to all API routes
 
 	// Health check must allow unauthenticated ping for probes
 	r.GET("/api/health", h.Health)

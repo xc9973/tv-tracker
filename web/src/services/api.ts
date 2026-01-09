@@ -4,6 +4,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
 });
 
+// Request interceptor to add auth token
 api.interceptors.request.use((config) => {
   const token = import.meta.env.VITE_API_TOKEN;
   if (token) {
@@ -14,6 +15,57 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Response interceptor for unified error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    let errorMessage = '请求失败，请稍后重试';
+    
+    if (error.response) {
+      // Server responded with error status
+      const status = error.response.status;
+      const data = error.response.data;
+      
+      switch (status) {
+        case 400:
+          errorMessage = data?.error || '请求参数错误';
+          break;
+        case 401:
+          errorMessage = '未授权，请检查访问令牌';
+          break;
+        case 403:
+          errorMessage = '禁止访问';
+          break;
+        case 404:
+          errorMessage = '请求的资源不存在';
+          break;
+        case 409:
+          errorMessage = data?.error || '资源冲突';
+          break;
+        case 500:
+          errorMessage = '服务器错误，请稍后重试';
+          break;
+        default:
+          errorMessage = data?.error || `请求失败 (${status})`;
+      }
+    } else if (error.request) {
+      // Request made but no response
+      errorMessage = '网络连接失败，请检查网络';
+    } else {
+      // Error in request setup
+      errorMessage = error.message || '请求配置错误';
+    }
+    
+    console.error('API Error:', errorMessage, error);
+    
+    // Create user-friendly error
+    const enhancedError = new Error(errorMessage);
+    (enhancedError as any).originalError = error;
+    
+    return Promise.reject(enhancedError);
+  }
+);
 
 export interface Task {
   id: number;
