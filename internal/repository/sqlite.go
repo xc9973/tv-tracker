@@ -33,8 +33,9 @@ func (s *SQLiteDB) Close() error {
 	return s.db.Close()
 }
 
-// InitSchema creates the database tables
+// InitSchema creates the database tables and runs migrations
 func (s *SQLiteDB) InitSchema() error {
+	// Create tables
 	schema := `
 	CREATE TABLE IF NOT EXISTS tv_shows (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,6 +89,91 @@ func (s *SQLiteDB) InitSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_shows_tmdb_archived ON tv_shows(tmdb_id, is_archived);
 	CREATE INDEX IF NOT EXISTS idx_tasks_show_completed ON tasks(tv_show_id, is_completed);
 	`
-	_, err := s.db.Exec(schema)
-	return err
+
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+
+	// Run migrations
+	return s.runMigrations()
+}
+
+// runMigrations executes pending database migrations
+func (s *SQLiteDB) runMigrations() error {
+	// Check if resource_time_is_manual column exists
+	var result string
+	err := s.db.QueryRow("SELECT resource_time_is_manual FROM tv_shows LIMIT 1").Scan(&result)
+
+	if err != nil {
+		// Column doesn't exist, need to migrate
+		return s.migrateResourceTimeIsManual()
+	}
+
+	return nil
+}
+
+// migrateResourceTimeIsManual adds the resource_time_is_manual column
+func (s *SQLiteDB) migrateResourceTimeIsManual() error {
+	// Start transaction
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Create new table with the column
+	_, err = tx.Exec(`
+		CREATE TABLE tv_shows_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			tmdb_id INTEGER UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			total_seasons INTEGER DEFAULT 1,
+			status TEXT DEFAULT 'Unknown',
+			origin_country TEXT DEFAULT '',
+			resource_time TEXT DEFAULT '待定',
+			resource_time_is_manual BOOLEAN DEFAULT FALSE,
+			is_archived BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Copy data from old table
+	_, err = tx.Exec(`
+		INSERT INTO tv_shows_new (
+			id, tmdb_id, name, total_seasons, status, origin_country, 
+			resource_time, is_archived, created_at, updated_at
+		)
+		SELECT 
+			id, tmdb_id, name, total_seasons, status, origin_country, 
+			resource_time, is_archived, created_at, updated_at
+		FROM tv_shows
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Drop old table
+	_, err = tx.Exec(`DROP TABLE tv_shows`)
+	if err != nil {
+		return err
+	}
+
+	// Rename new table
+	_, err = tx.Exec(`ALTER TABLE tv_shows_new RENAME TO tv_shows`)
+	if err != nil {
+		return err
+	}
+
+	// Recreate index
+	_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_shows_tmdb_archived ON tv_shows(tmdb_id, is_archived)`)
+	if err != nil {
+		return err
+	}
+
+	// Commit transaction
+	return tx.Commit()
 }
