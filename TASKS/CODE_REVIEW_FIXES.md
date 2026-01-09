@@ -153,17 +153,22 @@
 - **预计时间**: 45分钟
 - **状态**: ⏳ 待处理
 
-### Task 10: 添加超时配置
+### Task 10: 添加超时配置 ✅
 - **优先级**: 🟢 低
-- **文件**: `cmd/server/main.go`
+- **文件**: `cmd/server/main.go`, `.env.example`
 - **问题**: 关闭超时硬编码为 5 秒
 - **修复方案**:
   - 添加环境变量 `SHUTDOWN_TIMEOUT`
   - 默认值 5 秒，可配置
 - **预计时间**: 15分钟
-- **状态**: ⏳ 待处理
+- **状态**: ✅ 已完成
+- **完成时间**: 2026-01-09 11:30
+- **修改内容**:
+  - 添加 `ShutdownTimeout` 字段到 Config 结构
+  - 支持 `SHUTDOWN_TIMEOUT` 环境变量配置
+  - 更新 .env.example 添加说明
 
-### Task 11: 改进 getIntParam 函数
+### Task 11: 改进 getIntParam 函数 ✅
 - **优先级**: 🟢 低
 - **文件**: `internal/handler/http.go`
 - **问题**: 返回 0 无法区分错误和合法值
@@ -171,7 +176,12 @@
   - 改为返回 `(int64, error)` 元组
   - 调用方正确处理错误
 - **预计时间**: 30分钟
-- **状态**: ⏳ 待处理
+- **状态**: ✅ 已完成
+- **完成时间**: 2026-01-09 11:29
+- **修改内容**:
+  - 函数签名改为 `(int64, error)`
+  - 返回明确的错误信息
+  - 更新所有调用处: Unsubscribe, CompleteTask, PostponeTask, UpdateResourceTime, UpdateEpisodeAirDate
 
 ### Task 12: 部署脚本增强
 - **优先级**: 🟢 低

@@ -31,6 +31,7 @@ type Config struct {
 	DBPath            string
 	BackupDir         string
 	ReportTime        string // Format: "HH:MM"
+	ShutdownTimeout   time.Duration
 	WEBEnabled        bool
 	WEBListenAddr     string
 	WEBAPIToken       string
@@ -180,7 +181,7 @@ func main() {
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.ShutdownTimeout)
 	defer cancel()
 
 	if scheduler != nil {
@@ -206,6 +207,12 @@ func loadConfig() *Config {
 
 	webEnabled, _ := strconv.ParseBool(getEnv("WEB_ENABLED", "false"))
 
+	// Parse shutdown timeout (default: 5 seconds)
+	shutdownTimeoutSecs, _ := strconv.Atoi(getEnv("SHUTDOWN_TIMEOUT", "5"))
+	if shutdownTimeoutSecs <= 0 {
+		shutdownTimeoutSecs = 5
+	}
+
 	config := &Config{
 		TMDBAPIKey:        getEnv("TMDB_API_KEY", ""),
 		TelegramBotToken:  getEnv("TELEGRAM_BOT_TOKEN", ""),
@@ -214,6 +221,7 @@ func loadConfig() *Config {
 		DBPath:            getEnv("DB_PATH", "tv_tracker.db"),
 		BackupDir:         getEnv("BACKUP_DIR", "backups"),
 		ReportTime:        getEnv("REPORT_TIME", "08:00"),
+		ShutdownTimeout:   time.Duration(shutdownTimeoutSecs) * time.Second,
 		WEBEnabled:        webEnabled,
 		WEBListenAddr:     getEnv("WEB_LISTEN_ADDR", ":18080"),
 		WEBAPIToken:       getEnv("WEB_API_TOKEN", ""),

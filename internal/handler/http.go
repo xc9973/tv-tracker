@@ -222,9 +222,9 @@ func (h *HTTPHandler) Subscribe(c *gin.Context) {
 
 // Unsubscribe unsubscribes from a TV show
 func (h *HTTPHandler) Unsubscribe(c *gin.Context) {
-	id := h.getIntParam(c, "id")
-	if id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid show id"})
+	id, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -252,9 +252,9 @@ func (h *HTTPHandler) GetLibrary(c *gin.Context) {
 
 // CompleteTask marks a task as completed
 func (h *HTTPHandler) CompleteTask(c *gin.Context) {
-	taskID := h.getIntParam(c, "id")
-	if taskID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+	taskID, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -268,9 +268,9 @@ func (h *HTTPHandler) CompleteTask(c *gin.Context) {
 
 // PostponeTask postpones a task to tomorrow
 func (h *HTTPHandler) PostponeTask(c *gin.Context) {
-	taskID := h.getIntParam(c, "id")
-	if taskID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+	taskID, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -284,9 +284,9 @@ func (h *HTTPHandler) PostponeTask(c *gin.Context) {
 
 // UpdateResourceTime updates the resource time for a TV show
 func (h *HTTPHandler) UpdateResourceTime(c *gin.Context) {
-	id := h.getIntParam(c, "id")
-	if id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid show id"})
+	id, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -319,12 +319,21 @@ func (h *HTTPHandler) UpdateResourceTime(c *gin.Context) {
 
 // UpdateEpisodeAirDate updates the air date for a specific episode
 func (h *HTTPHandler) UpdateEpisodeAirDate(c *gin.Context) {
-	tmdbID := int(h.getIntParam(c, "tmdb_id"))
-	season := int(h.getIntParam(c, "season"))
-	episode := int(h.getIntParam(c, "episode"))
+	tmdbID, err := h.getIntParam(c, "tmdb_id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	if tmdbID == 0 || season == 0 || episode == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parameters"})
+	season, err := h.getIntParam(c, "season")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	episode, err := h.getIntParam(c, "episode")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -337,7 +346,7 @@ func (h *HTTPHandler) UpdateEpisodeAirDate(c *gin.Context) {
 	}
 
 	// Update episode air date in repository
-	if err := h.episodeRepo.UpdateAirDate(tmdbID, season, episode, req.AirDate); err != nil {
+	if err := h.episodeRepo.UpdateAirDate(int(tmdbID), int(season), int(episode), req.AirDate); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -393,18 +402,18 @@ func (h *HTTPHandler) getAPIToken() string {
 	return h.apiToken
 }
 
-func (h *HTTPHandler) getIntParam(c *gin.Context, key string) int64 {
+func (h *HTTPHandler) getIntParam(c *gin.Context, key string) (int64, error) {
 	value := c.Param(key)
 	if value == "" {
 		value = c.Query(key)
 	}
 	if value == "" {
-		return 0
+		return 0, fmt.Errorf("parameter %s is required", key)
 	}
 
 	var id int64
 	if _, err := fmt.Sscanf(value, "%d", &id); err != nil {
-		return 0
+		return 0, fmt.Errorf("parameter %s must be a valid integer", key)
 	}
-	return id
+	return id, nil
 }
