@@ -437,6 +437,10 @@
             if (!query) return;
             
             const results = document.getElementById('searchResults');
+            if (!API_TOKEN) {
+                results.innerHTML = '<div class="error">请先配置 WEB_API_TOKEN</div>';
+                return;
+            }
             results.innerHTML = '<div class="loading">搜索中...</div>';
             
             try {
@@ -444,32 +448,37 @@
                 const isTmdbId = /^\d+$/.test(query);
                 
                 if (isTmdbId) {
-                    // 直接通过TMDB ID获取剧集信息
-                    const response = await fetch(`https://api.themoviedb.org/3/tv/${query}?language=zh-CN`, {
-                        headers: { 'Authorization': 'Bearer YOUR_TMDB_TOKEN' }
+                    // 通过后端获取 TMDB 详情（统一鉴权）
+                    const response = await fetch(`${API_BASE}/tv/${encodeURIComponent(query)}`, {
+                        headers: { 'Authorization': `Bearer ${API_TOKEN}` }
                     });
-                    
-                    if (response.ok) {
-                        const show = await response.json();
-                        results.innerHTML = `
-                            <div class="list-item">
-                                <div class="list-item-info">
-                                    <h3>${show.name || show.original_name}</h3>
-                                    <p>TMDB ID: ${show.id} · ${show.first_air_date || ''} · ${show.vote_average ? '⭐ ' + show.vote_average : ''}</p>
-                                </div>
-                                <div class="list-item-actions">
-                                    <button class="btn-small" onclick="subscribe(${show.id}, '${(show.name || show.original_name).replace(/'/g, "\\'")}')">订阅</button>
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        results.innerHTML = '<div class="empty-state">未找到该TMDB ID对应的剧集</div>';
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${text}`);
                     }
+
+                    const data = await response.json();
+                    const show = data.show;
+                    results.innerHTML = `
+                        <div class="list-item">
+                            <div class="list-item-info">
+                                <h3>${show.name || show.original_name}</h3>
+                                <p>TMDB ID: ${show.id} · ${show.first_air_date || ''} · ${show.vote_average ? '⭐ ' + show.vote_average : ''}</p>
+                            </div>
+                            <div class="list-item-actions">
+                                <button class="btn-small" onclick="subscribe(${show.id}, '${(show.name || show.original_name).replace(/'/g, "\\'")}')">订阅</button>
+                            </div>
+                        </div>
+                    `;
                 } else {
                     // 名称搜索
                     const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
                         headers: { 'Authorization': `Bearer ${API_TOKEN}` }
                     });
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    }
                     const data = await response.json();
                     
                     if (data.results && data.results.length > 0) {

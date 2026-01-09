@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -45,9 +46,12 @@ type EpisodeInfo struct {
 type TVDetails struct {
 	ID               int          `json:"id"`
 	Name             string       `json:"name"`
+	OriginalName     string       `json:"original_name"`
+	FirstAirDate     string       `json:"first_air_date"`
 	Status           string       `json:"status"`
 	PosterPath       string       `json:"poster_path"`
 	OriginCountry    []string     `json:"origin_country"`
+	VoteAverage      float64      `json:"vote_average"`
 	NumberOfSeasons  int          `json:"number_of_seasons"`
 	NextEpisodeToAir *EpisodeInfo `json:"next_episode_to_air"`
 	LastEpisodeToAir *EpisodeInfo `json:"last_episode_to_air"`
@@ -98,6 +102,36 @@ func (c *Client) SetBaseURL(baseURL string) {
 	c.baseURL = baseURL
 }
 
+func (c *Client) apiToken() string {
+	token := strings.TrimSpace(c.apiKey)
+	token = strings.TrimPrefix(token, "Bearer ")
+	return token
+}
+
+func (c *Client) useBearerAuth() bool {
+	token := c.apiToken()
+	return strings.Count(token, ".") >= 2 || strings.HasPrefix(token, "eyJ")
+}
+
+func (c *Client) buildURL(path string, params url.Values) string {
+	if params == nil {
+		params = url.Values{}
+	}
+	if !c.useBearerAuth() {
+		params.Set("api_key", c.apiToken())
+	}
+	if len(params) == 0 {
+		return fmt.Sprintf("%s%s", c.baseURL, path)
+	}
+	return fmt.Sprintf("%s%s?%s", c.baseURL, path, params.Encode())
+}
+
+func (c *Client) applyAuthHeader(req *http.Request) {
+	if c.useBearerAuth() {
+		req.Header.Set("Authorization", "Bearer "+c.apiToken())
+	}
+}
+
 // SearchTV searches for TV shows by query string
 // Calls TMDB /search/tv API with Chinese language
 func (c *Client) SearchTV(query string) ([]SearchResult, error) {
@@ -107,14 +141,16 @@ func (c *Client) SearchTV(query string) ([]SearchResult, error) {
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/search/tv?query=%s&language=zh-CN",
-		c.baseURL, url.QueryEscape(query))
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("language", "zh-CN")
+	endpoint := c.buildURL("/search/tv", params)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	c.applyAuthHeader(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -143,13 +179,15 @@ func (c *Client) GetTVDetails(tmdbID int) (*TVDetails, error) {
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/tv/%d?language=zh-CN", c.baseURL, tmdbID)
+	params := url.Values{}
+	params.Set("language", "zh-CN")
+	endpoint := c.buildURL(fmt.Sprintf("/tv/%d", tmdbID), params)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	c.applyAuthHeader(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -181,14 +219,15 @@ func (c *Client) GetSeasonEpisodes(tmdbID, seasonNumber int) ([]EpisodeInfo, err
 
 	c.rateLimit() // 限流
 
-	endpoint := fmt.Sprintf("%s/tv/%d/season/%d?language=zh-CN",
-		c.baseURL, tmdbID, seasonNumber)
+	params := url.Values{}
+	params.Set("language", "zh-CN")
+	endpoint := c.buildURL(fmt.Sprintf("/tv/%d/season/%d", tmdbID, seasonNumber), params)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	c.applyAuthHeader(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

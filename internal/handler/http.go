@@ -97,6 +97,7 @@ func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 
 	// Search
 	api.GET("/search", h.SearchTV)
+	api.GET("/tv/:id", h.GetTVDetails)
 
 	// Subscription
 	api.POST("/subscribe", h.Subscribe)
@@ -207,6 +208,23 @@ func (h *HTTPHandler) SearchTV(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"results": results})
+}
+
+// GetTVDetails fetches a TV show by TMDB ID
+func (h *HTTPHandler) GetTVDetails(c *gin.Context) {
+	id, err := h.getIntParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	details, err := h.tmdbClient.GetTVDetails(int(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"show": details})
 }
 
 // Subscribe subscribes to a TV show
