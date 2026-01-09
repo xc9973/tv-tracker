@@ -368,11 +368,21 @@
             <div class="modal-header">编辑剧集信息</div>
             <div class="form-group">
                 <label>剧集名称</label>
-                <input type="text" id="editShowName" readonly>
+                <input type="text" id="editShowName" readonly style="background:#f5f5f5;color:#666;">
+            </div>
+            <div class="form-group">
+                <label>季数 / 集数</label>
+                <input type="text" id="editSeasonEpisode" readonly style="background:#f5f5f5;color:#666;">
+            </div>
+            <div class="form-group">
+                <label>资源播出日期</label>
+                <input type="date" id="editAirDate" placeholder="选择日期">
+                <small style="display:block;margin-top:5px;color:#666;">资源实际可用的日期</small>
             </div>
             <div class="form-group">
                 <label>资源时间</label>
                 <input type="text" id="editResourceTime" placeholder="例如: 08:00 或 周五20:00">
+                <small style="display:block;margin-top:5px;color:#666;">资源通常更新的时间</small>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="saveEdit()">保存</button>
@@ -529,7 +539,7 @@
                     const dateDisplay = date.substring(5); // MM-DD
                     
                     const episodesHTML = episodes.length > 0 ? episodes.map(item => `
-                        <div class="calendar-item" onclick="showEditModal(${item.show_id}, '${item.show_name.replace(/'/g, "\\'")}', ${item.episode.season}, ${item.episode.episode}, '${item.resource_time || ''}')">
+                        <div class="calendar-item" onclick="showEditModal(${item.show_id}, '${item.show_name.replace(/'/g, "\\'")}', ${item.episode.season}, ${item.episode.episode}, '${item.episode.air_date || ''}', '${item.resource_time || ''}')">
                             <div class="calendar-item-title">${item.show_name}</div>
                             <div class="calendar-item-info">
                                 S${item.episode.season}E${item.episode.episode}
@@ -705,10 +715,13 @@
         
         // 编辑弹窗功能
         let currentEditShowId = null;
+        let currentEditEpisodeId = null;
         
-        function showEditModal(showId, showName, season, episode, resourceTime) {
+        function showEditModal(showId, showName, season, episode, airDate, resourceTime) {
             currentEditShowId = showId;
             document.getElementById('editShowName').value = showName;
+            document.getElementById('editSeasonEpisode').value = `S${season}E${episode}`;
+            document.getElementById('editAirDate').value = airDate || '';
             document.getElementById('editResourceTime').value = resourceTime;
             document.getElementById('editModal').classList.add('show');
         }
