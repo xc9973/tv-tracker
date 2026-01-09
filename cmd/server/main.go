@@ -43,15 +43,15 @@ func main() {
 	reportMode := flag.Bool("report", false, "Send daily report and exit")
 	flag.Parse()
 
-	// Initialize logger
+	// Initialize logger first
 	isDev := getEnv("ENV", "production") == "development"
 	if err := logger.InitLogger(isDev); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
-	// Load configuration
-	config := loadConfig()
+	// Load configuration and validate after logger is initialized
+	config := loadConfigAndValidate()
 
 	// Initialize database
 	db, err := repository.NewSQLiteDB(config.DBPath)
@@ -212,8 +212,8 @@ func main() {
 	logger.Info("Shutdown complete")
 }
 
-// loadConfig loads configuration from environment variables
-func loadConfig() *Config {
+// loadConfigAndValidate loads configuration from environment variables and validates required fields
+func loadConfigAndValidate() *Config {
 	chatID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHAT_ID", "0"), 10, 64)
 	channelID, _ := strconv.ParseInt(getEnv("TELEGRAM_CHANNEL_ID", "0"), 10, 64)
 
@@ -239,12 +239,15 @@ func loadConfig() *Config {
 		WEBAPIToken:       getEnv("WEB_API_TOKEN", ""),
 	}
 
-	// Validate required configuration
+	// Validate required configuration using structured logger
 	if config.TMDBAPIKey == "" {
-		log.Fatal("Error: TMDB_API_KEY is required but not set. Please set the TMDB_API_KEY environment variable.")
+		logger.Fatal("TMDB_API_KEY is required but not set",
+			zap.String("hint", "Please set the TMDB_API_KEY environment variable"))
 	}
 	if config.WEBEnabled && config.WEBAPIToken == "" {
-		log.Fatal("Error: WEB_API_TOKEN is required when WEB_ENABLED=true. Please set the WEB_API_TOKEN environment variable.")
+		logger.Fatal("WEB_API_TOKEN is required when WEB_ENABLED=true",
+			zap.Bool("web_enabled", config.WEBEnabled),
+			zap.String("hint", "Please set the WEB_API_TOKEN environment variable"))
 	}
 
 	return config
