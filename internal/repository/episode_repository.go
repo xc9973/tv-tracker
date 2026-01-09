@@ -143,3 +143,13 @@ func (r *EpisodeRepository) DeleteByTMDBID(tmdbID int) error {
 	_, err := r.db.Exec(`DELETE FROM episodes WHERE tmdb_id = ?`, tmdbID)
 	return err
 }
+
+// UpdateAirDate updates the air date for a specific episode
+func (r *EpisodeRepository) UpdateAirDate(tmdbID int, season int, episode int, airDate string) error {
+	_, err := r.db.Exec(`
+		UPDATE episodes
+		SET air_date = ?
+		WHERE tmdb_id = ? AND season = ? AND episode = ?
+	`, airDate, tmdbID, season, episode)
+	return err
+}

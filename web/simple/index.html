@@ -539,7 +539,7 @@
                     const dateDisplay = date.substring(5); // MM-DD
                     
                     const episodesHTML = episodes.length > 0 ? episodes.map(item => `
-                        <div class="calendar-item" onclick="showEditModal(${item.show_id}, '${item.show_name.replace(/'/g, "\\'")}', ${item.episode.season}, ${item.episode.episode}, '${item.episode.air_date || ''}', '${item.resource_time || ''}')">
+                        <div class="calendar-item" onclick="showEditModal(${item.show_id}, ${item.episode.tmdb_id}, '${item.show_name.replace(/'/g, "\\'")}', ${item.episode.season}, ${item.episode.episode}, '${item.episode.air_date || ''}', '${item.resource_time || ''}')">
                             <div class="calendar-item-title">${item.show_name}</div>
                             <div class="calendar-item-info">
                                 S${item.episode.season}E${item.episode.episode}
@@ -715,10 +715,15 @@
         
         // 编辑弹窗功能
         let currentEditShowId = null;
-        let currentEditEpisodeId = null;
+        let currentEditTmdbId = null;
+        let currentEditSeason = null;
+        let currentEditEpisode = null;
         
-        function showEditModal(showId, showName, season, episode, airDate, resourceTime) {
+        function showEditModal(showId, tmdbId, showName, season, episode, airDate, resourceTime) {
             currentEditShowId = showId;
+            currentEditTmdbId = tmdbId;
+            currentEditSeason = season;
+            currentEditEpisode = episode;
             document.getElementById('editShowName').value = showName;
             document.getElementById('editSeasonEpisode').value = `S${season}E${episode}`;
             document.getElementById('editAirDate').value = airDate || '';
@@ -732,33 +737,52 @@
         }
         
         async function saveEdit() {
-            if (!currentEditShowId) return;
+            if (!currentEditShowId || !currentEditTmdbId) return;
             
             const resourceTime = document.getElementById('editResourceTime').value.trim();
+            const airDate = document.getElementById('editAirDate').value.trim();
             
-            if (!resourceTime) {
-                alert('请输入资源时间');
+            if (!resourceTime && !airDate) {
+                alert('请至少填写资源时间或播出日期');
                 return;
             }
             
             try {
-                const response = await fetch(`${API_BASE}/shows/${currentEditShowId}/resource-time`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${API_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ resource_time: resourceTime })
-                });
-                
-                if (response.ok) {
-                    alert('保存成功!');
-                    closeEditModal();
-                    loadCalendar(); // 刷新日历
-                } else {
-                    const text = await response.text();
-                    alert('保存失败: ' + text);
+                // 1. 更新资源时间(如果有改动)
+                if (resourceTime) {
+                    const timeResponse = await fetch(`${API_BASE}/shows/${currentEditShowId}/resource-time`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${API_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ resource_time: resourceTime })
+                    });
+                    
+                    if (!timeResponse.ok) {
+                        throw new Error('更新资源时间失败');
+                    }
                 }
+                
+                // 2. 更新播出日期(如果有改动)
+                if (airDate) {
+                    const dateResponse = await fetch(`${API_BASE}/episodes/${currentEditTmdbId}/${currentEditSeason}/${currentEditEpisode}/air-date`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${API_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ air_date: airDate })
+                    });
+                    
+                    if (!dateResponse.ok) {
+                        throw new Error('更新播出日期失败');
+                    }
+                }
+                
+                alert('保存成功!');
+                closeEditModal();
+                loadCalendar(); // 刷新日历
             } catch (error) {
                 alert('保存失败: ' + error.message);
             }

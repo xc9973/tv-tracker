@@ -84,6 +84,9 @@ func (h *HTTPHandler) RegisterRoutes(r *gin.Engine) {
 	// Resource time
 	api.PUT("/shows/:id/resource-time", h.UpdateResourceTime)
 
+	// Episode air date
+	api.PUT("/episodes/:tmdb_id/:season/:episode/air-date", h.UpdateEpisodeAirDate)
+
 	// Backups
 	api.POST("/backup", func(c *gin.Context) {
 		backupPath, err := h.backupSvc.Backup()
@@ -307,6 +310,34 @@ func (h *HTTPHandler) UpdateResourceTime(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"show": show})
+}
+
+// UpdateEpisodeAirDate updates the air date for a specific episode
+func (h *HTTPHandler) UpdateEpisodeAirDate(c *gin.Context) {
+	tmdbID := int(h.getIntParam(c, "tmdb_id"))
+	season := int(h.getIntParam(c, "season"))
+	episode := int(h.getIntParam(c, "episode"))
+
+	if tmdbID == 0 || season == 0 || episode == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid parameters"})
+		return
+	}
+
+	var req struct {
+		AirDate string `json:"air_date" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update episode air date in repository
+	if err := h.episodeRepo.UpdateAirDate(tmdbID, season, episode, req.AirDate); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "air date updated"})
 }
 
 // Health returns health status
